@@ -9,7 +9,7 @@ import traceback
 optionsfile = open('options.txt', 'r')
 options = optionsfile.readlines()
 user = options[0].rstrip()
-passw = options[1]
+passw = options[1].rstrip()
 
 # Create dictionary from textfile.
 notifications_file = open('notifications.txt', 'r+')

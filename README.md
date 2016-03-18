@@ -1,5 +1,5 @@
 # KeywordBot
-Keyword Notifications, similar to skype, for Discord!
+Keyword Notifications, similar to skype, for Discord! Example: http://i.imgur.com/TBDAlwA.png || Reddit thread: https://redd.it/4awfe9
 --------------------------
 Install guide:
 

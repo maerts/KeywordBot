@@ -29,7 +29,7 @@ client = discord.Client()
 ##    try:
 ##        print ( 'Welcome {0.name} to {1.name}!'.format(member,server) ) #sometimes has special char errors
 ##    except:
-##        print ( 'Welcome specialcharsname to .reddit-kpop!')
+##        print ( 'Welcome specialcharsname to server!')
 
 @client.async_event
 def on_ready():

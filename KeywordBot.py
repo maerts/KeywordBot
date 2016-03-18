@@ -45,7 +45,7 @@ def on_message(message):
     if message.author == client.user:
         return
     if message.channel.is_private:
-        yield from client.send_message(message.channel, "Hi I'm notification bot Momo! \n\
+        yield from client.send_message(message.channel, "Hi I'm a keyword-notification bot! \n\
 `!notification [keyword]` to add a skype-like notification, `!deletenotification [keyword]` to delete it.")
 
     try:

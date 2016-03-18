@@ -15,3 +15,8 @@ From here you'll want a new bot account that is ONLY connected to the server(s) 
 Open options.txt (preferably in Notepad++, regular notepad can fuck things up) and replace the placeholder email/password with your own.
 
 Finally run _run_KeywordBot.bat, should see a command prompt with "Connected!" and list of servers the bot's account is connected to.
+
+------------------------
+COMMANDS (any user can use):
+- !notification [keyword]
+- !deletenotification [keyword]

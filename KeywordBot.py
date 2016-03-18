@@ -5,9 +5,11 @@ import datetime
 import os
 import traceback
 
-#Make a new discord account and use that info for below.
-user = "email@gmail.com" #input email here
-passw = "password" #input password here
+## Extracts discord account info from options.txt
+optionsfile = open('options.txt', 'r')
+options = optionsfile.readlines()
+user = options[0].rstrip()
+passw = options[1]
 
 # Create dictionary from textfile.
 notifications_file = open('notifications.txt', 'r+')

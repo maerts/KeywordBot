@@ -9,7 +9,7 @@ Then go to this guide: https://github.com/SexualRhinoceros/MusicBot/wiki/Install
 
 From the guide above, install git + python, ignore step 3 about MusicBot
 
-run bestfixnupdate.bat to update prerequisites/dependencies. If you've followed the install guide carefully, everything should update correctly.
+run bestfixnupdate.bat to update dependencies. If you've followed the link carefully, everything should update correctly.
 
 From here you'll want a new bot account that is ONLY connected to the server(s) you want notifications on.
 Open options.txt (preferably in Notepad++, regular notepad can fuck things up) and replace the placeholder email/password with your own.

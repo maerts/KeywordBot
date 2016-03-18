@@ -17,6 +17,6 @@ Open options.txt (preferably in Notepad++, regular notepad can fuck things up) a
 Finally run _run_KeywordBot.bat, should see a command prompt with "Connected!" and list of servers the bot's account is connected to.
 
 ------------------------
-COMMANDS (any user can use):
+COMMANDS (Any user can use. No brackets needed.):
 - !notification [keyword]
 - !deletenotification [keyword]

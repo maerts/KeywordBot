@@ -11,6 +11,7 @@ From the guide above, install git + python, ignore step 3 about MusicBot
 
 run bestfixnupdate.bat to update prerequisites/dependencies. If you've followed the install guide carefully, everything should update correctly.
 
-From here you'll want a new bot account that is ONLY connected to the server(s) you want notifications on. Open options.txt (preferably in Notepad++, regular notepad can fuck things up) and replace the placeholder email/password with your own.
+From here you'll want a new bot account that is ONLY connected to the server(s) you want notifications on.
+Open options.txt (preferably in Notepad++, regular notepad can fuck things up) and replace the placeholder email/password with your own.
 
-run _run_KeywordBot.bat, should see a command prompt with "Connected!" and list of servers the bot's account is connected to.
+Finally run _run_KeywordBot.bat, should see a command prompt with "Connected!" and list of servers the bot's account is connected to.

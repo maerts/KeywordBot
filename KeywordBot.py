@@ -88,8 +88,8 @@ def custom_notifications(message):
                     pass
                 else:
                     yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), \
-                            '`{} mentioned` {} `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
-                    print('`{} mentioned {} in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                            '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                    print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
 # EXAMPLE: !notification apink
 def if_add(message):

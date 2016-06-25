@@ -5,7 +5,7 @@ Example: http://i.imgur.com/TBDAlwA.png || Reddit thread: https://redd.it/4awfe9
 
 Download/Install guide:
 
-To download, use this [mega link](https://mega.co.nz/#!d4tQRZxB!HmJyYbpN14rmwEjmHJTN_6HXd4Nrbx5Mqx5sW6S_UMg)
+To download, click the green ["Clone or Download"](http://i.imgur.com/rteHIOj.png) button top-right and download the zip.
 
 Then go to this guide: https://github.com/SexualRhinoceros/MusicBot/wiki/Installation-guide-for-Windows-7-and-up
 

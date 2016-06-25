@@ -56,9 +56,9 @@ def on_message(message):
             
     except:
         try:
-            print(' mentioned keyword:` '+ message.content)
+            print('Someone mentioned keyword:` '+ message.content)
         except:
-            print('prob some special character in message.content')
+            print('probably some special character in message.content')
 
     yield from if_add(message)
     yield from if_delete(message)

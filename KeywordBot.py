@@ -21,15 +21,13 @@ for line in notifications_file:
 client = discord.Client()
 
 ## Uncomment below if you want announcements on who joins the server.
-##@client.async_event
-##def on_member_join(member):
-##    server = member.server
-##    fmt = 'Welcome {0.mention} to {1.name}!'
-##    yield from client.send_message(server, fmt.format(member, server))
-##    try:
-##        print ( 'Welcome {0.name} to {1.name}!'.format(member,server) ) #sometimes has special char errors
-##    except:
-##        print ( 'Welcome specialcharsname to server!')
+@client.async_event
+def on_member_join(member):
+    server = member.server
+    fmt = 'Welcome {0.mention} to {1.name}!'
+    ##yield from client.send_message(server, fmt.format(member, server))
+    yield from client.send_message(discord.utils.find(lambda u: u.id == member.id, client.get_all_members()), helpmsg)
+    print('Sent intro message to '+ member.name)
 
 @client.async_event
 def on_ready():
@@ -40,13 +38,18 @@ def on_ready():
     for server in client.servers:
         print(server.name)
         
+helpmsg = "Hi I'm notification bot Momo! Made by: <@68661361537712128>\n\
+\n\
+`!notification {keyword}` to add a skype-like notification, `!deletenotification {keyword}` to delete it.\n\
+`!notifications` for a list of your current notifications. `Rightclick->Block` to turn off notifications.\n\
+Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
+        
 @client.async_event
 def on_message(message):
     if message.author == client.user:
         return
     if message.channel.is_private:
-        yield from client.send_message(message.channel, "Hi I'm a keyword-notification bot! \n\
-`!notification [keyword]` to add a skype-like notification, `!deletenotification [keyword]` to delete it.")
+        yield from client.send_message(message.channel, helpmsg)
 
     try:
         yield from custom_notifications(message)
@@ -63,10 +66,14 @@ def on_message(message):
         update_dict()
     elif '!showN' == message.content[0:6]:
         yield from show(message)
-
+    elif '!showD' == message.content[0:6]:
+        yield from showD(message)
+    elif '!mynotifications' == message.content[0:16]:
+        yield from mynotifications(message)
+    elif '!notifications' == message.content[0:14]:
+        yield from mynotifications(message)
 
 ##################################################
-
 
 def custom_notifications(message):
     # { 'apink' : ['id', 'id2'], 'twice' : ['id'] }
@@ -80,8 +87,9 @@ def custom_notifications(message):
                     print('same user')
                     pass
                 else:
-                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned {} in {}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
-                    print('`{} mentioned {} in {}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), \
+                            '`{} mentioned` {} `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                    print('`{} mentioned {} in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
 # EXAMPLE: !notification apink
 def if_add(message):
@@ -171,14 +179,41 @@ def update_dict():
         notifications_dict[linesplit[0]] = linesplit[1:]
     print('Updated.')
 
-# !shownotifications, doesn't work for some reason
+# !notifications
+def mynotifications(message):
+    global notifications_dict
+    mine = []
+    for keyword in notifications_dict:
+        if message.author.id in notifications_dict[keyword]:
+            mine.append(keyword)
+    yield from client.send_message(message.channel, mine)
+
+# !showN
 def show(message):
     n = open('notifications.txt', 'r+')
     msg = '#notifications#'
     for line in n:
         if line != '#notifications#\n':
             msg += '\n' + line.strip('\n')
-    yield from client.send_message(message.channel, msg)
+    yield from client.send_message(message.author, msg[:2000])
+    if len(msg) >= 2000:
+        #               1.1 -> 2 for math.ceil, sends extra message
+        for i in range(1, math.ceil(len(msg)/2000) ):
+            c1 = msg[i*2000:(i+1)*2000]
+            yield from client.send_message(message.author, c1)
+
+# !showD
+def showD(message):
+    global notifications_dict
+    msg = ''
+    for keyword in notifications_dict:
+        msg += '{} {}\n'.format(keyword, notifications_dict[keyword])
+    yield from client.send_message(message.author, msg[:2000])
+    if len(msg) >= 2000:
+        #               1 -> 2 if round returns 3, which prints 3msgs
+        for i in range(1, round(len(msg)/2000) ):
+            c1 = msg[i*2000:(i+1)*2000]
+            yield from client.send_message(message.author, c1)
             
 ############## Helper Methods ##################
             

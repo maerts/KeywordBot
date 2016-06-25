@@ -38,7 +38,7 @@ def on_ready():
     for server in client.servers:
         print(server.name)
         
-helpmsg = "Hi I'm notification bot Momo! Made by: <@68661361537712128>\n\
+helpmsg = "Hi I'm a notification bot! Made by: <@68661361537712128>\n\
 \n\
 `!notification {keyword}` to add a skype-like notification, `!deletenotification {keyword}` to delete it.\n\
 `!notifications` for a list of your current notifications. `Rightclick->Block` to turn off notifications.\n\

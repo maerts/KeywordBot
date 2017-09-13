@@ -19,8 +19,8 @@ After setting those up execute the following commands
 
 Initial configuration
 -------------
-options.txt    - add the user mail, password and the server ID where you want the bot to be active
-admin.txt      - the roles that can execute admin commands
-users.txt      - the roles that can use the bot normally
-channels.txt   - the channels the bot monitors
+- options.txt    - add the user mail, password and the server ID where you want the bot to be active
+- admin.txt      - the roles that can execute admin commands
+- users.txt      - the roles that can use the bot normally
+- channels.txt   - the channels the bot monitors
  

@@ -1,24 +1,26 @@
 # KeywordBot
-Keyword Notifications, similar to skype, for Discord!
---------------------------
-Example: http://i.imgur.com/TBDAlwA.png || Reddit thread: https://redd.it/4awfe9
+* Forked from https://github.com/berkuhlee/KeywordBot
 
-Download/Install guide:
+Improvements
+* Only allow a subset of configurable roles to access the bot
+* Only allow a subset of configurable roles to access admin commands
+* Only monitor a few configurable channels 
 
-To download, click the green ["Clone or Download"](http://i.imgur.com/rteHIOj.png) button top-right and download the zip.
 
-Then go to this guide: https://github.com/SexualRhinoceros/MusicBot/wiki/Installation-guide-for-Windows-7-and-up
+Setup requirements
+------------------
+- python 3.4
+- PIP3
 
-1. From the guide above, install git + python, ignore step 3 about MusicBot
+After setting those up execute the following commands
+pip3 install git+https://github.com/Rapptz/discord.py@async
+pip3 install requests
 
-2. Run **bestfixnupdate.bat** to update dependencies. If you've followed the link carefully, everything should update correctly.
 
-3. From here you'll want a new bot account that is ONLY connected to the server(s) you want notifications on.
-Open **options.txt** (preferably in Notepad++, regular notepad can fuck things up) and replace the placeholder email/password with your own.
-
-4. Finally run **_run_KeywordBot.bat**, should see a command prompt with "Connected!" and list of servers the bot's account is connected to.
-
-------------------------
-COMMANDS (Any user can use. No brackets needed.):
-- !notification [keyword]
-- !deletenotification [keyword]
+Initial configuration
+-------------
+options.txt    - add the user mail, password and the server ID where you want the bot to be active
+admin.txt      - the roles that can execute admin commands
+users.txt      - the roles that can use the bot normally
+channels.txt   - the channels the bot monitors
+ 

@@ -10,6 +10,7 @@ optionsfile = open('options.txt', 'r')
 options = optionsfile.readlines()
 user = options[0].rstrip()
 passw = options[1].rstrip()
+serverid = options[2].rstrip()
 
 # Create dictionary from textfile.
 notifications_file = open('notifications.txt', 'r+')
@@ -20,14 +21,36 @@ for line in notifications_file:
 
 client = discord.Client()
 
+# normal users
+users_list = []
+users_file = open('users.txt', 'r+')
+for line in users_file:
+    roleinfo = line.split(": ")
+    users_list.append(roleinfo[0])
+    
+# admins
+admin_list = []
+admin_file = open('admins.txt', 'r+')
+for line in admin_file:
+    roleinfo = line.split(": ")
+    admin_list.append(roleinfo[0])
+    
+# monitored channels
+mon_channels = []
+channel_file = open('channels.txt', 'r+')
+for line in channel_file:
+    channelinfo = line.split(": ")
+    mon_channels.append(channelinfo[0])
+    
+
 ## Uncomment below if you want announcements on who joins the server.
 @client.async_event
 def on_member_join(member):
     server = member.server
     fmt = 'Welcome {0.mention} to {1.name}!'
     ##yield from client.send_message(server, fmt.format(member, server))
-    yield from client.send_message(discord.utils.find(lambda u: u.id == member.id, client.get_all_members()), helpmsg)
-    print('Sent intro message to '+ member.name)
+    ##yield from client.send_message(discord.utils.find(lambda u: u.id == member.id, client.get_all_members()), helpmsg)
+    ##print('Sent intro message to '+ member.name)
 
 @client.async_event
 def on_ready():
@@ -36,48 +59,71 @@ def on_ready():
     print('ID: ' + client.user.id)
     print('--Server List--')
     for server in client.servers:
-        print(server.name)
+        serverid = server.id
+        print(server.id + ': ' + server.name)
+        print('-- Roles --')
+        for role in server.roles:
+          print(role.id + ': ' + role.name);
+        print('-- Channels --')
+        for channel in server.channels:
+          print(channel.id + ': ' + channel.name)
         
-helpmsg = "Hi I'm a notification bot! Made by: <@68661361537712128>\n\
+helpmsg = "Hi I'm a notification bot!\n\
 \n\
 `!notification {keyword}` to add a skype-like notification, `!deletenotification {keyword}` to delete it.\n\
 `!notifications` for a list of your current notifications. `Rightclick->Block` to turn off notifications.\n\
 Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
-        
+  
+noaccessmsg = "Hi I'm a notification bot!\n\
+\n\
+Unfortunately you do not have the proper permissions to use me, read #announcements for more information on how to donate to get access."
+  
 @client.async_event
 def on_message(message):
+    if message.channel.id not in mon_channels and not message.channel.is_private:
+        return
     if message.author == client.user:
         return
     if message.channel.is_private:
-        yield from client.send_message(message.channel, helpmsg)
+        if deny_access_to_func(message, 'user'):
+            yield from client.send_message(message.channel, noaccessmsg)
+        else:
+            yield from client.send_message(message.channel, helpmsg)
 
     try:
         yield from custom_notifications(message)
             
     except:
         try:
-            print('Someone mentioned keyword:` '+ message.content)
+            print('Someone mentioned keyword: '+ message.content)
         except:
             print('probably some special character in message.content')
-
     yield from if_add(message)
     yield from if_delete(message)
-    if '!update' == message.content[0:7]:
+    access_admin = not deny_access_to_func(message, 'admin')
+    access_user = not deny_access_to_func(message, 'user')
+    if '!update' == message.content[0:7] and access_admin:
         update_dict()
-    elif '!showN' == message.content[0:6]:
+    elif '!showN' == message.content[0:6] and access_admin:
         yield from show(message)
-    elif '!showD' == message.content[0:6]:
+    elif '!showD' == message.content[0:6] and access_admin:
         yield from showD(message)
-    elif '!mynotifications' == message.content[0:16]:
+    elif '!mynotifications' == message.content[0:16] and access_user:
         yield from mynotifications(message)
-    elif '!notifications' == message.content[0:14]:
+    elif '!notifications' == message.content[0:14] and access_user:
         yield from mynotifications(message)
 
 ##################################################
 
 def custom_notifications(message):
-    # { 'apink' : ['id', 'id2'], 'twice' : ['id'] }
     msglist = message.content.lower().split()
+    embed = False
+    if len(message.embeds) == 1:
+        embed = True
+        title = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['title']).lower().split()
+        desc = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['description']).lower().split()
+        msglist = msglist + title + desc
+        print(msglist)
     ######
     # Loop through dictionary
     for keyword in notifications_dict:
@@ -86,15 +132,22 @@ def custom_notifications(message):
                 if user_id == message.author.id:
                     print('same user')
                     pass
+                elif embed:
+                    #emb = discord.Embed(title=str(message.embeds[0]['title']), type='rich', url=str(), description=str(message.embeds[0]['description']))
+                    #emb.set_image(url=str(message.embeds[0]['image']))
+                    #emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']))
+                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                    print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                 else:
-                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), \
-                            '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
                     print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
 # EXAMPLE: !notification apink
 def if_add(message):
     # message.author.id to add to files list
     if '!notification ' == message.content[0:14]:
+        if deny_access_to_func(message, 'user'):
+            return
         msg = message.content.lower().split()
         notifications_file = open('notifications.txt', 'r+')
         # when keyword in file:
@@ -140,6 +193,8 @@ def if_delete(message):
     # opens file list, finds line with apink, deletes message.author.id from it.
     # If empty dict, delete?
     if '!deletenotification' == message.content[0:19]:
+        if deny_access_to_func(message, 'user'):
+            return
         notifications_file = open('notifications.txt', 'r+')
         msg = message.content.lower().split()
         newt = '#notifications#'
@@ -169,7 +224,7 @@ def if_delete(message):
         else:
             yield from client.send_message(message.channel, "Couldn't find.")
 
-# !update , used when you change something in the .txt
+# !update , used when you manually change something in the .txt
 def update_dict():
     notifications_file = open('notifications.txt', 'r+')
     global notifications_dict
@@ -227,6 +282,41 @@ def _rewrite(file, newfile):
     file.truncate(0)
     file.seek(0)
     file.write(newfile)
+
+def deny_access_to_func(message, group):
+    if message.author.bot:
+        return False
+    # distinguish whether the user is high privileged than @everyone
+    stopUnauth = True
+    # in PM determine the user roles from the server settings.
+    if message.author.__class__.__name__ ==  'User':
+        msrv = client.get_server(serverid)
+        usr = msrv.get_member(message.author.id)
+    # in channel message, the Member object is available directly
+    elif message.author.__class__.__name__ ==  'Member':
+        usr = message.author
+    else:
+        return stopUnauth
+        
+    try:
+        getattr(usr, 'roles') 
+    except AttributeError:
+        print("-- Debug info -- ")
+        print("type: " + message.type.name)
+        print("channel: " + message.channel.name)
+        print("bot: " + str(message.author.bot))
+        print("clean message: " + message.clean_content)
+        print("message: " + message.content)
+        print("system message: " + message.system_content)
+        print("embeds: " + str(message.embeds))
+        return stopUnauth
+    else:
+      roles = usr.roles
+      for role in roles:
+         if role.id in admin_list:
+           stopUnauth = False
+           break         
+      return stopUnauth
 
 #############################################
 

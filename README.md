@@ -13,8 +13,8 @@ Setup requirements
 - PIP3
 
 After setting those up execute the following commands
-pip3 install git+https://github.com/Rapptz/discord.py@async
-pip3 install requests
+- pip3 install git+https://github.com/Rapptz/discord.py@async
+- pip3 install requests
 
 
 Initial configuration

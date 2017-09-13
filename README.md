@@ -24,3 +24,18 @@ Initial configuration
 - users.txt      - the roles that can use the bot normally
 - channels.txt   - the channels the bot monitors
  
+Running the bot
+---------------
+- python3 Keywordbot.py will execute the bot
+
+
+
+
+
+
+
+TODO
+-----
+- Cleanup of the code
+- Extend manageability from direct commands
+- add instructions on how to run it as a daemon

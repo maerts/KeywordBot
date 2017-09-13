@@ -1,2 +1,0 @@
-python KeywordBot.py
-pause

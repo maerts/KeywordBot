@@ -61,7 +61,7 @@ def on_ready():
     for server in client.servers:
         serverid = server.id
         print(server.id + ': ' + server.name)
-        print('-- Roles'.ljust(50) + 'admin'.ljust(7) + 'user')
+        print('-- Roles  --'.ljust(50) + 'admin'.ljust(7) + 'user')
         for role in server.roles:
           r_ad = '[*]' if role.id in admin_list else '[ ]'
           r_us = '[*]' if role.id in users_list else '[ ]'
@@ -136,19 +136,17 @@ def custom_notifications(message):
                     pass
                 elif embed:
                     try:
-                        emb = discord.Embed(title="" + str(message.embeds[0]['title']), description="" + str(message.embeds[0]['description']))
-                        emb.set_image(url=str(message.embeds[0]['image']))
-                        emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']))
-                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'])), embed=emb)
-                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-
+                        emb_title = '`{} was mentioned` `in #{}`'.format(keyword, message.channel.name)
+                        emb_desc = str(message.embeds[0]['description'])
+                        emb_url = str(message.embeds[0]['url'])
+                        emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                        emb.set_image(url=str(message.embeds[0]['image']['url']))
+                        emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
                     except discord.DiscordException as de:
                         print(de.message)
-                        #emb = discord.Embed(title=str(message.embeds[0]['title']), type='rich', url=str(), description=str(message.embeds[0]['description']))
-                        #emb.set_image(url=str(message.embeds[0]['image']))
-                        #emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']))
                         yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                    print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                 else:
                     yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
                     print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))

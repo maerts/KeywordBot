@@ -22,6 +22,7 @@ for line in notifications_file:
 client = discord.Client()
 
 # normal users
+global users_list
 users_list = []
 users_file = open('users.txt', 'r+')
 for line in users_file:
@@ -29,6 +30,7 @@ for line in users_file:
     users_list.append(roleinfo[0])
     
 # admins
+global admin_list
 admin_list = []
 admin_file = open('admins.txt', 'r+')
 for line in admin_file:
@@ -36,6 +38,7 @@ for line in admin_file:
     admin_list.append(roleinfo[0])
     
 # monitored channels
+global mon_channels
 mon_channels = []
 channel_file = open('channels.txt', 'r+')
 for line in channel_file:
@@ -73,9 +76,21 @@ def on_ready():
         
 helpmsg = "Hi I'm a notification bot!\n\
 \n\
-`!notification {keyword}` to add a skype-like notification, `!deletenotification {keyword}` to delete it.\n\
-`!notifications` for a list of your current notifications. `Rightclick->Block` to turn off notifications.\n\
+`!notification {keyword}` to add a skype-like notification\n\
+`!deletenotification {keyword}` to delete it.\n\
+`!notifications` for a list of your current notifications.\n\
 Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
+  
+helpamsg = "\n\n\
+Admin commands\n\
+\n\
+`!update` to force update the notifications in the bot\n\
+`!showN` print the list as it is stored in the textfile.\n\
+`!showD` print the list of loaded notifications in the bot.\n\
+`!channels` print all channels and which ones are monitored by me.\n\
+`!chanadd {id}` add the channel with the id to the monitored list.\n\
+`!chandel {id}` remove the channel from the monitored list.\n\
+"
   
 noaccessmsg = "Hi I'm a notification bot!\n\
 \n\
@@ -90,8 +105,11 @@ def on_message(message):
     if message.channel.is_private:
         if deny_access_to_func(message, 'user'):
             yield from client.send_message(message.channel, noaccessmsg)
-        else:
-            yield from client.send_message(message.channel, helpmsg)
+        elif '!help' == message.content[0:5]:
+            returnmsg = helpmsg
+            if not deny_access_to_func(message, 'admin'):
+                returnmsg += helpamsg
+            yield from client.send_message(message.channel, returnmsg)
 
     try:
         yield from custom_notifications(message)
@@ -111,6 +129,14 @@ def on_message(message):
         yield from show(message)
     elif '!showD' == message.content[0:6] and access_admin:
         yield from showD(message)
+    elif '!channels' == message.content[0:9] and access_admin:
+        yield from channels(message, 'show')
+    elif '!chanadd' == message.content[0:8] and access_admin:
+        yield from channels(message, 'add')
+    elif '!chandel' == message.content[0:8] and access_admin:
+        yield from channels(message, 'del')
+    elif '!chanup' == message.content[0:7] and access_admin:
+        yield from channels(message, 'update')
     elif '!mynotifications' == message.content[0:16] and access_user:
         yield from mynotifications(message)
     elif '!notifications' == message.content[0:14] and access_user:
@@ -278,8 +304,105 @@ def showD(message):
         for i in range(1, round(len(msg)/2000) ):
             c1 = msg[i*2000:(i+1)*2000]
             yield from client.send_message(message.author, c1)
-            
-############## Helper Methods ##################
+
+# --- channel methods ---
+# !channels !chanadd !chandel !chanup
+def channels(message, action):
+    global mon_channels
+    server = client.get_server(serverid)
+    if action == 'show': # Handle the displaying of all channels and mark which ones are monitored
+        msg = ''
+        msg += 'active\t' + 'Channels\n'
+
+        for channel in server.channels:
+          c_mon = '[o]' if channel.id in mon_channels else '[  ]'
+          msg += c_mon + '\t\t' + (channel.id + ': ' + channel.name) + '\n'
+        yield from client.send_message(message.author, msg[:2000])
+        if len(msg) >= 2000:
+            #               1 -> 2 if round returns 3, which prints 3msgs
+            for i in range(1, round(len(msg)/2000) ):
+                c1 = msg[i*2000:(i+1)*2000]
+                yield from client.send_message(message.author, c1)
+    elif action == 'add': # Handle channel additions
+        msg = message.content.lower().split()
+        # Make sure the channelid exists on the server
+        fakechan = True
+        channelfound = None
+        for channel in server.channels:
+            if channel.id == msg[1]:
+                fakechan = False
+                channelfound = channel
+                break
+        if fakechan:
+            yield from client.send_message(message.channel, 'Channel with id `{}` does not exist for this server.'.format(msg[1]))
+            return
+        # when channel in file:
+        channel_file = open('channels.txt', 'r+')
+        channelindict = False
+
+        if msg[1] in mon_channels:
+            channelindict = True
+        
+        if not channelindict:
+            channel_file.read()
+            channel_file.write('\n' + msg[1] + ': ' + channelfound.name)
+            channel_file.close()
+        # Update the channel file.
+        chanup()
+        if channelindict:
+            yield from client.send_message(message.channel, 'Channel with id `{}` already in list.'.format(msg[1]) )
+        else:
+            yield from client.send_message(message.channel, 'Channel *{}* with id `{}` added. To delete, use `!channeldel [id]`'.format(channelfound.name, msg[1]) )
+
+    elif action == 'del': # Handle deletion from the channel list
+        channel_file = open('channels.txt', 'r+')
+        msg = message.content.lower().split()
+        willdelete = False
+        channels_tmp = ""
+
+        # cycle through the file
+        for line in channel_file:
+            chanfo = line.split(': ')
+            # keep the file if the key doesn't match the search, if it is found, flag for rewrite
+            if msg[1] != chanfo[0]:
+                nl = '\n'
+                if channels_tmp == '':
+                    nl = ''
+                channels_tmp += nl + line.strip('\n')
+            else:
+                willdelete = True
+        
+        if channels_tmp == '':
+            yield from client.send_message(message.channel, 'You need at least 1 channel in this list, add another one before removing this one')
+
+        if willdelete:
+            _rewrite(channel_file, channels_tmp)
+            # Update the channel file, we have to use the whole snippet because sequential function calls bug out sometimes.
+            channel_file = open('channels.txt', 'r+')
+            mon_channels = []
+            for line in channel_file:
+                channelinfo = line.split(": ")
+                mon_channels.append(channelinfo[0])
+            print('Channels updated.')
+            yield from client.send_message(message.channel, "Channel with id `{}` no longer monitored.".format(msg[1]) )
+        else:
+            yield from client.send_message(message.channel, "Couldn't find channel with id `{}`.".format(msg[1]))
+    elif action == 'update': # Handle the updates to the physical file on the drive
+        chanup()
+        yield from client.send_message(message.channel, "Channellist updated.")
+
+def chanup():
+    channel_file = open('channels.txt', 'r+')
+    global mon_channels
+    mon_channels = []
+    for line in channel_file:
+        channelinfo = line.split(": ")
+        mon_channels.append(channelinfo[0])
+    print('Channels updated.')
+
+# --- End channel methods ---
+
+# --- Helper Methods ---
             
 def file_len(fname):
     with open(fname) as f:
@@ -333,7 +456,7 @@ def deny_access_to_func(message, group):
            break         
       return stopUnauth
 
-#############################################
+# --- End helper Methods ---
 
 loop = asyncio.get_event_loop()
 try:

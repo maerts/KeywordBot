@@ -91,6 +91,9 @@ Admin commands\n\
 `!channels` print all channels and which ones are monitored by me.\n\
 `!chanadd {id}` add the channel with the id to the monitored list.\n\
 `!chandel {id}` remove the channel from the monitored list.\n\
+`!uroles` print all roles that can use notification commands (non admin).\n\
+`!uroleadd {id}` give an extra role access to the notification bot.\n\
+`!uroledel {id}` take away permission of a role to access the notification bot.\n\
 "
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\

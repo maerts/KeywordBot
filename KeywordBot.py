@@ -73,14 +73,15 @@ def on_ready():
         for channel in server.channels:
           c_mon = '[*]' if channel.id in mon_channels else '[ ]'
           print((channel.id + ': ' + channel.name).ljust(50) + c_mon)
-        
+# The !help message for normal users
 helpmsg = "Hi I'm a notification bot!\n\
 \n\
 `!notification {keyword}` to add a skype-like notification\n\
 `!deletenotification {keyword}` to delete it.\n\
 `!notifications` for a list of your current notifications.\n\
 Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
-  
+
+# The !help message for admin users
 helpamsg = "\n\n\
 Admin commands\n\
 \n\
@@ -91,7 +92,7 @@ Admin commands\n\
 `!chanadd {id}` add the channel with the id to the monitored list.\n\
 `!chandel {id}` remove the channel from the monitored list.\n\
 "
-  
+# The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
 \n\
 Unfortunately you do not have the proper permissions to use me, read #announcements for more information on how to donate to get access."
@@ -137,6 +138,14 @@ def on_message(message):
         yield from channels(message, 'del')
     elif '!chanup' == message.content[0:7] and access_admin:
         yield from channels(message, 'update')
+    elif '!uroles' == message.content[0:7] and access_admin:
+        yield from urole(message, 'show')
+    elif '!uroleadd' == message.content[0:9] and access_admin:
+        yield from urole(message, 'add')
+    elif '!uroledel' == message.content[0:9] and access_admin:
+        yield from urole(message, 'del')
+    elif '!uroleup' == message.content[0:8] and access_admin:
+        yield from urole(message, 'update')
     elif '!mynotifications' == message.content[0:16] and access_user:
         yield from mynotifications(message)
     elif '!notifications' == message.content[0:14] and access_user:
@@ -144,6 +153,9 @@ def on_message(message):
 
 ##################################################
 
+
+# --- notification functions ---
+# General catch all for all speech to pick up on keywords
 def custom_notifications(message):
     msglist = message.content.lower().split()
     embed = False
@@ -177,7 +189,8 @@ def custom_notifications(message):
                     yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
                     print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
-# EXAMPLE: !notification apink
+
+# !notification {keyword}
 def if_add(message):
     # message.author.id to add to files list
     if '!notification ' == message.content[0:14]:
@@ -223,9 +236,10 @@ def if_add(message):
         else:
             yield from client.send_message(message.channel, 'Added notification `{}`. To delete, use `!deletenotification [keyword]`'.format(msg[1]) )
 
-# EXAMPLE: !deletenotification apink
+            
+# !deletenotification {keyword}
 def if_delete(message):
-    # opens file list, finds line with apink, deletes message.author.id from it.
+    # opens file list, finds line with the keyword, deletes message.author.id from it.
     # If empty dict, delete?
     if '!deletenotification' == message.content[0:19]:
         if deny_access_to_func(message, 'user'):
@@ -259,7 +273,7 @@ def if_delete(message):
         else:
             yield from client.send_message(message.channel, "Couldn't find.")
 
-# !update , used when you manually change something in the .txt
+# !update
 def update_dict():
     notifications_file = open('notifications.txt', 'r+')
     global notifications_dict
@@ -304,7 +318,8 @@ def showD(message):
         for i in range(1, round(len(msg)/2000) ):
             c1 = msg[i*2000:(i+1)*2000]
             yield from client.send_message(message.author, c1)
-
+# --- End notification functions ---
+            
 # --- channel methods ---
 # !channels !chanadd !chandel !chanup
 def channels(message, action):
@@ -401,6 +416,104 @@ def chanup():
     print('Channels updated.')
 
 # --- End channel methods ---
+
+# --- Normale user role methods ---
+# !uroles !uroleadd !uroledel !uroleup
+def urole(message, action):
+    global users_list
+    server = client.get_server(serverid)
+    if action == 'show': # Handle the displaying of all channels and mark which ones are monitored
+        msg = ''
+        msg += 'active\t' + 'Roles\n'
+
+        for role in server.roles:
+          c_mon = '[o]' if role.id in users_list else '[  ]'
+          msg += c_mon + '\t\t' + (role.id + ': ' + role.name) + '\n'
+        yield from client.send_message(message.author, msg[:2000])
+        if len(msg) >= 2000:
+            #               1 -> 2 if round returns 3, which prints 3msgs
+            for i in range(1, round(len(msg)/2000) ):
+                c1 = msg[i*2000:(i+1)*2000]
+                yield from client.send_message(message.author, c1)
+    elif action == 'add': # Handle channel additions
+        msg = message.content.lower().split()
+        # Make sure the channelid exists on the server
+        fakerole = True
+        rolefound = None
+        for role in server.roles:
+            if role.id == msg[1]:
+                fakerole = False
+                rolefound = role
+                break
+        if fakerole:
+            yield from client.send_message(message.channel, 'Role with id `{}` does not exist for this server.'.format(msg[1]))
+            return
+        # when channel in file:
+        users_file = open('users.txt', 'r+')
+        userinlist = False
+
+        if msg[1] in users_list:
+            userinlist = True
+        
+        if not userinlist:
+            users_file.read()
+            users_file.write('\n' + msg[1] + ': ' + rolefound.name)
+            users_file.close()
+        # Update the channel file.
+        uroleup()
+        if userinlist:
+            yield from client.send_message(message.channel, 'Role with id `{}` already in list.'.format(msg[1]) )
+        else:
+            yield from client.send_message(message.channel, 'Role *{}* with id `{}` added. To delete, use `!channeldel [id]`'.format(rolefound.name, msg[1]) )
+
+    elif action == 'del': # Handle deletion from the channel list
+        users_file = open('users.txt', 'r+')
+        msg = message.content.lower().split()
+        willdelete = False
+        roles_tmp = ""
+
+        # cycle through the file
+        for line in users_file:
+            rolnfo = line.split(': ')
+            # keep the file if the key doesn't match the search, if it is found, flag for rewrite
+            if msg[1] != rolnfo[0]:
+                nl = '\n'
+                if roles_tmp == '':
+                    nl = ''
+                roles_tmp += nl + line.strip('\n')
+            else:
+                willdelete = True
+        
+        if roles_tmp == '':
+            yield from client.send_message(message.channel, 'You need at least 1 channel in this list, add another one before removing this one')
+
+        if willdelete:
+            _rewrite(users_file, roles_tmp)
+            # Update the channel file, we have to use the whole snippet because sequential function calls bug out sometimes.
+            users_file = open('users.txt', 'r+')
+            users_list = []
+            for line in users_file:
+                rolnfo = line.split(": ")
+                users_list.append(rolnfo[0])
+            print('User roles updated.')
+            yield from client.send_message(message.channel, "Role with id `{}` has no access anymore to the bot.".format(msg[1]) )
+        else:
+            yield from client.send_message(message.channel, "Couldn't find role with id `{}`.".format(msg[1]))
+    elif action == 'update': # Handle the updates to the physical file on the drive
+        uroleup()
+        yield from client.send_message(message.channel, "Roles updated.")
+
+def uroleup():
+    users_file = open('users.txt', 'r+')
+    global users_list
+    users_list = []
+    for line in users_file:
+        roleinfo = line.split(": ")
+        users_list.append(roleinfo[0])
+    print('User roles updated.')
+        
+
+# --- End normal user role methods ---
 
 # --- Helper Methods ---
             

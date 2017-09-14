@@ -136,7 +136,7 @@ def custom_notifications(message):
                     pass
                 elif embed:
                     try:
-                        emb_title = '`{} was mentioned` `in #{}`'.format(keyword, message.channel.name)
+                        emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
                         emb_desc = str(message.embeds[0]['description'])
                         emb_url = str(message.embeds[0]['url'])
                         emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)

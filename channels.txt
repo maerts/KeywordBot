@@ -8,3 +8,4 @@
 335417354894835713: london-raids-1_2
 337970455736614913: london-raids-legendary
 352096637008478219: london-dt-sightings
+334712536844730380: stthomas-raids

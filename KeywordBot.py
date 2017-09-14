@@ -61,12 +61,15 @@ def on_ready():
     for server in client.servers:
         serverid = server.id
         print(server.id + ': ' + server.name)
-        print('-- Roles --')
+        print('-- Roles'.ljust(50) + 'admin'.ljust(7) + 'user')
         for role in server.roles:
-          print(role.id + ': ' + role.name);
-        print('-- Channels --')
+          r_ad = '[*]' if role.id in admin_list else '[ ]'
+          r_us = '[*]' if role.id in users_list else '[ ]'
+          print((role.id + ': ' + role.name).ljust(50) + r_ad.ljust(7) + r_us)
+        print('-- Channels --'.ljust(50) + 'monitored')
         for channel in server.channels:
-          print(channel.id + ': ' + channel.name)
+          c_mon = '[*]' if channel.id in mon_channels else '[ ]'
+          print((channel.id + ': ' + channel.name).ljust(50) + c_mon)
         
 helpmsg = "Hi I'm a notification bot!\n\
 \n\
@@ -123,7 +126,6 @@ def custom_notifications(message):
         title = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['title']).lower().split()
         desc = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['description']).lower().split()
         msglist = msglist + title + desc
-        print(msglist)
     ######
     # Loop through dictionary
     for keyword in notifications_dict:
@@ -133,11 +135,20 @@ def custom_notifications(message):
                     print('same user')
                     pass
                 elif embed:
-                    #emb = discord.Embed(title=str(message.embeds[0]['title']), type='rich', url=str(), description=str(message.embeds[0]['description']))
-                    #emb.set_image(url=str(message.embeds[0]['image']))
-                    #emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']))
-                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                    print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                    try:
+                        emb = discord.Embed(title="" + str(message.embeds[0]['title']), description="" + str(message.embeds[0]['description']))
+                        emb.set_image(url=str(message.embeds[0]['image']))
+                        emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']))
+                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'])), embed=emb)
+                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+
+                    except discord.DiscordException as de:
+                        print(de.message)
+                        #emb = discord.Embed(title=str(message.embeds[0]['title']), type='rich', url=str(), description=str(message.embeds[0]['description']))
+                        #emb.set_image(url=str(message.embeds[0]['image']))
+                        #emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']))
+                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                 else:
                     yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
                     print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
@@ -311,9 +322,15 @@ def deny_access_to_func(message, group):
         print("embeds: " + str(message.embeds))
         return stopUnauth
     else:
+      if group == 'admin':
+          role_list = admin_list
+      elif group == 'user':
+          role_list = users_list
+      else:
+          return False
       roles = usr.roles
       for role in roles:
-         if role.id in admin_list:
+         if role.id in role_list:
            stopUnauth = False
            break         
       return stopUnauth

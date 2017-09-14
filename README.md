@@ -1,5 +1,6 @@
 # KeywordBot
 * Forked from https://github.com/berkuhlee/KeywordBot
+* http://discordpy.readthedocs.io/en/latest/api.html
 
 Improvements
 * Only allow a subset of configurable roles to access the bot

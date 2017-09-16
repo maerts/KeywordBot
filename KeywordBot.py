@@ -423,7 +423,10 @@ def roleadd(message):
         roleid = msg[1]
         user = int(msg[2])
         admin = int(msg[3])
-        
+        if roleid in protected_roles:
+            user = 1
+            admin = 1
+
         # verify existence of rol on the server
         fakerole = True
         rolefound = None

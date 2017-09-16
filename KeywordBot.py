@@ -24,15 +24,14 @@ sql_db = config.get('sql', 'sql.db')
 # - protected roles
 protected_roles = config.get('protected', 'protected.roles')
 
-# Create dictionary from textfile.
+# Create dictionaries placeholders, on_ready they will be filled up from db.
 notifications_list = {}
-notifications_file = open('notifications.txt', 'r+')
-notifications_dict = {}
-for line in notifications_file:
-    linesplit = line.split()
-    notifications_dict[linesplit[0]] = linesplit[1:]
+roles_list = {}
+channel_list = []
 
+# Start discord client
 client = discord.Client()
+
 
 ## Uncomment below if you want announcements on who joins the server.
 @client.async_event
@@ -45,6 +44,12 @@ def on_member_join(member):
 
 @client.async_event
 def on_ready():
+    global notifications_list
+    global channel_list
+    global roles_list
+    notifications_list = updatedictionary()
+    channel_list = chanmon()    
+    roles_list = rolesdictionary()
     print('Connected! Ready to notify.')
     print('Username: ' + client.user.name)
     print('ID: ' + client.user.id)
@@ -54,10 +59,9 @@ def on_ready():
         print(server.id + ': ' + server.name)
         print('-- Channels --'.ljust(50) + 'monitored')
         for channel in server.channels:
-          c_mon = '[*]' if channel.id in chanmon() else '[ ]'
+          c_mon = '[*]' if channel.id in channel_list else '[ ]'
           print((channel.id + ': ' + channel.name).ljust(50) + c_mon)
-    global notifications_list
-    notifications_list = updatedictionary()
+    
 
 # --- Help messages ---
 # The !help message for normal users
@@ -88,7 +92,8 @@ Unfortunately you do not have the proper permissions to use me, read #announceme
 @client.async_event
 def on_message(message):
     global notifications_list
-    if message.channel.id not in chanmon() and not message.channel.is_private:
+    global channel_list
+    if message.channel.id not in channel_list and not message.channel.is_private:
         return
     if message.author == client.user:
         return
@@ -99,7 +104,6 @@ def on_message(message):
             returnmsg = helpmsg
             if roleacc(message, 'admin'):
                 returnmsg += helpamsg
-                print(str(notifications_list))
             yield from client.send_message(message.channel, returnmsg)
 
     # Handle incoming messages and filter them for keywords.
@@ -116,7 +120,6 @@ def on_message(message):
     access_admin = roleacc(message, 'admin')
     access_user = roleacc(message, 'user')
     if '!update' == message.content[0:7] and access_admin:
-        global notifications_list
         notifications_list = updatedictionary()
     elif '!chanlst' == message.content[0:8] and access_admin:
         yield from chanlst(message)
@@ -279,7 +282,9 @@ def updatedictionary():
     return dict
     
 # --- End notification functions ---
-            
+
+
+
 # --- channel methods ---
 # Function to add monitored channels to the database
 def chanadd(message):
@@ -326,6 +331,8 @@ def chanadd(message):
                     print(str(e))
 
                 db_close(db)
+                global channel_list
+                channel_list = chanmon()
                 yield from client.send_message(message.channel, "Added channel `{}` to the database".format(chanfound.name))
 
 # Function to delete a channel from the database
@@ -346,11 +353,14 @@ def chandel(message):
         db_close(db)
         if deleted > 0:
             yield from client.send_message(message.channel, "Deleted channel with id `{}` from the database.".format(chanid))
+            global channel_list
+            channel_list = chanmon()
         else:
             yield from client.send_message(message.channel, "Channel with id `{}` doesn't exist in the database.".format(chanid))
 
 # Function to list all channels in the database & if they are monitored
 def chanlst(message):
+    global channel_list
     db = db_connect()
     c = db.cursor()
     c.execute("SELECT * FROM notificationbot_channels")
@@ -363,7 +373,7 @@ def chanlst(message):
     # Get all channels from server
     server = client.get_server(discord_server)
     for chan in server.channels:
-        r_mon = '[*]' if chan.id in chanmon() else '[ ]'
+        r_mon = '[*]' if chan.id in channel_list else '[ ]'
 
         msg += (chan.id + ': ' + chan.name).ljust(50) + r_mon.ljust(7) + '\n'
     msg += '```'
@@ -445,6 +455,8 @@ def roleadd(message):
                     db.rollback()
 
                 db_close(db)
+                global roles_list
+                roles_list = rolesdictionary()
                 yield from client.send_message(message.channel, "Added role `{}` to the database [admin={}, user={}]".format(rolefound.name, admin, user))
 
 # Function to delete a role from the database
@@ -467,35 +479,25 @@ def roledel(message):
         db.commit()
         db_close(db)
         if deleted > 0:
+            global roles_list
+            roles_list = rolesdictionary()
             yield from client.send_message(message.channel, "Deleted role with id `{}` from the database.".format(roleid))
         else:
             yield from client.send_message(message.channel, "Role with id `{}` doesn't exist in the database.".format(roleid))
 
 # Function to list all roles in the database & their permissions
 def rolelst(message):
-    db = db_connect()
-    c = db.cursor()
-    c.execute("SELECT * FROM notificationbot_roles")
-    data = c.fetchall()
-    c.close()
-    db_close(db)
-    # Build a dict from roles from the db
-    roles = {}
-    for i, d in enumerate(data):
-        chunk = {}
-        chunk['name'] = d[2]
-        chunk['user'] = d[3]
-        chunk['admin'] = d[4]
-        roles[d[1]] = chunk
+    global roles_list
+    roles_list = rolesdictionary()
     msg = '```'
     msg += '-- Roles  --'.ljust(50) + 'admin'.ljust(7) + 'user'.ljust(7) + 'protected\n'
 
     # Get all roles from server
     server = client.get_server(discord_server)
     for role in server.roles:
-        in_db = role.id in roles.keys()
-        r_ad = '[*]' if in_db and roles[role.id]['admin'] == 1 else '[ ]'
-        r_us = '[*]' if in_db and roles[role.id]['user'] == 1 else '[ ]'
+        in_db = role.id in roles_list.keys()
+        r_ad = '[*]' if in_db and roles_list[role.id]['admin'] == 1 else '[ ]'
+        r_us = '[*]' if in_db and roles_list[role.id]['user'] == 1 else '[ ]'
         r_pr = '[*]' if role.id in protected_roles else '[ ]'
         msg += (role.id + ': ' + role.name).ljust(50) + r_ad.ljust(7) + r_us.ljust(7) + r_pr + '\n'
     msg += '```'
@@ -530,45 +532,37 @@ def roleacc(message, group):
         print("bot: " + str(message.author.bot))
         return stopUnauth
     else:
-        db = db_connect()
-        c = db.cursor()
-        c.execute("SELECT * FROM notificationbot_roles")
-        data = c.fetchall()
-        c.close()
-        db_close(db)
-        # Build a dict from roles from the db
-        roles = {}
-        for i, d in enumerate(data):
-            chunk = {}
-            chunk['name'] = d[2]
-            chunk['user'] = d[3]
-            chunk['admin'] = d[4]
-            roles[d[1]] = chunk
+        global roles_list
+        roles_list = rolesdictionary()
         # Cycle through the roles on the user object
         for role in usr.roles:
-           if role.id in roles.keys() and roles[role.id][group] == 1:
+           if role.id in roles_list.keys() and roles_list[role.id][group] == 1:
              stopUnauth = True
              break         
         return stopUnauth
       
+# Helper function to update the channel dictionary to loop through. Lowers the DB load.
+def rolesdictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_roles")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    # Build a dict from roles from the db
+    roles = {}
+    for i, d in enumerate(data):
+        chunk = {}
+        chunk['name'] = d[2]
+        chunk['user'] = d[3]
+        chunk['admin'] = d[4]
+        roles[d[1]] = chunk
+    # return all roles
+    return roles
+
 # --- End normal user role methods ---
 
-
-
 # --- Helper Methods ---
-            
-def file_len(fname):
-    with open(fname) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
-
-def _rewrite(file, newfile):
-    file.truncate(0)
-    file.seek(0)
-    file.write(newfile)
-# --- End helper Methods ---
-
 # --- db functions ---
 # Helper function to execute a query and return the results in a list object
 def db_connect():
@@ -579,6 +573,8 @@ def db_connect():
 def db_close(connection):
     connection.close()
 # --- End db functions ---
+# --- End helper Methods ---
+
 
 loop = asyncio.get_event_loop()
 try:

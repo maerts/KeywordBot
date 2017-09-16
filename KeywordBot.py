@@ -142,6 +142,9 @@ def on_message(message):
 # --- notification functions ---
 # General catch all for all speech to pick up on keywords.
 def custom_notifications(message):
+    global roles_list
+    global notifications_list
+    server = client.get_server(discord_server)
     if message.channel.name == None:
         return
     msglist = message.content.lower().split()
@@ -156,8 +159,15 @@ def custom_notifications(message):
     for keyword in notifications_list.keys():
         if keyword in msglist:
             for user_id in notifications_list[keyword]: # if empty, does nothing
-                if user_id == message.author.id:
-                    print('same user')
+                # Make sure we don't notify users whose access has been revoked
+                usr = server.get_member(user_id)
+                revoke = True
+                for role in usr.roles:
+                    if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                        revoke = False
+                        break
+                if user_id == message.author.id or revoke:
+                    print('Invalid user: same user or role with access revoked')
                     pass
                 elif embed:
                     try:
@@ -169,7 +179,7 @@ def custom_notifications(message):
                         emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
                         yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
                     except discord.DiscordException as de:
-                        print(de.message)
+                        print(str(de.message))
                         yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                     print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                 else:
@@ -533,7 +543,6 @@ def roleacc(message, group):
         return stopUnauth
     else:
         global roles_list
-        roles_list = rolesdictionary()
         # Cycle through the roles on the user object
         for role in usr.roles:
            if role.id in roles_list.keys() and roles_list[role.id][group] == 1:
@@ -541,7 +550,7 @@ def roleacc(message, group):
              break         
         return stopUnauth
       
-# Helper function to update the channel dictionary to loop through. Lowers the DB load.
+# Helper function to update the roles dictionary to loop through. Lowers the DB load.
 def rolesdictionary():
     db = db_connect()
     c = db.cursor()

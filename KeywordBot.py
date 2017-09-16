@@ -3,16 +3,29 @@ import discord
 import re
 import datetime
 import os
+import configparser
 import traceback
+import MySQLdb
 
-## Extracts discord account info from options.txt
-optionsfile = open('options.txt', 'r')
-options = optionsfile.readlines()
-user = options[0].rstrip()
-passw = options[1].rstrip()
-serverid = options[2].rstrip()
+## Get configuration from ini file
+## No validation on its presence, so make sure these are present
+config = configparser.RawConfigParser()
+config.read('config.ini')
+# - discord config
+discord_user = config.get('discord', 'discord.user')
+discord_pass = config.get('discord', 'discord.pass')
+discord_server = config.get('discord', 'discord.serverid')
+# - db config
+sql_user = config.get('sql', 'sql.user')
+sql_pass = config.get('sql', 'sql.pass')
+sql_host = config.get('sql', 'sql.host')
+sql_port = int(config.get('sql', 'sql.port'))
+sql_db = config.get('sql', 'sql.db')
+# - protected roles
+protected_roles = config.get('protected', 'protected.roles')
 
 # Create dictionary from textfile.
+notifications_list = {}
 notifications_file = open('notifications.txt', 'r+')
 notifications_dict = {}
 for line in notifications_file:
@@ -21,39 +34,14 @@ for line in notifications_file:
 
 client = discord.Client()
 
-# normal users
-global users_list
-users_list = []
-users_file = open('users.txt', 'r+')
-for line in users_file:
-    roleinfo = line.split(": ")
-    users_list.append(roleinfo[0])
-    
-# admins
-global admin_list
-admin_list = []
-admin_file = open('admins.txt', 'r+')
-for line in admin_file:
-    roleinfo = line.split(": ")
-    admin_list.append(roleinfo[0])
-    
-# monitored channels
-global mon_channels
-mon_channels = []
-channel_file = open('channels.txt', 'r+')
-for line in channel_file:
-    channelinfo = line.split(": ")
-    mon_channels.append(channelinfo[0])
-    
-
 ## Uncomment below if you want announcements on who joins the server.
 @client.async_event
 def on_member_join(member):
     server = member.server
     fmt = 'Welcome {0.mention} to {1.name}!'
-    ##yield from client.send_message(server, fmt.format(member, server))
-    ##yield from client.send_message(discord.utils.find(lambda u: u.id == member.id, client.get_all_members()), helpmsg)
-    ##print('Sent intro message to '+ member.name)
+    # yield from client.send_message(server, fmt.format(member, server))
+    # yield from client.send_message(discord.utils.find(lambda u: u.id == member.id, client.get_all_members()), helpmsg)
+    # print('Sent intro message to '+ member.name)
 
 @client.async_event
 def on_ready():
@@ -62,22 +50,21 @@ def on_ready():
     print('ID: ' + client.user.id)
     print('--Server List--')
     for server in client.servers:
-        serverid = server.id
+        discord_server = server.id
         print(server.id + ': ' + server.name)
-        print('-- Roles  --'.ljust(50) + 'admin'.ljust(7) + 'user')
-        for role in server.roles:
-          r_ad = '[*]' if role.id in admin_list else '[ ]'
-          r_us = '[*]' if role.id in users_list else '[ ]'
-          print((role.id + ': ' + role.name).ljust(50) + r_ad.ljust(7) + r_us)
         print('-- Channels --'.ljust(50) + 'monitored')
         for channel in server.channels:
-          c_mon = '[*]' if channel.id in mon_channels else '[ ]'
+          c_mon = '[*]' if channel.id in chanmon() else '[ ]'
           print((channel.id + ': ' + channel.name).ljust(50) + c_mon)
+    global notifications_list
+    notifications_list = updatedictionary()
+
+# --- Help messages ---
 # The !help message for normal users
 helpmsg = "Hi I'm a notification bot!\n\
 \n\
-`!notification {keyword}` to add a skype-like notification\n\
-`!deletenotification {keyword}` to delete it.\n\
+`!notify {keyword}` to add a skype-like notification\n\
+`!notifydel {keyword}` to delete it.\n\
 `!notifications` for a list of your current notifications.\n\
 Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
 
@@ -85,36 +72,37 @@ Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
 helpamsg = "\n\n\
 Admin commands\n\
 \n\
-`!update` to force update the notifications in the bot\n\
-`!showN` print the list as it is stored in the textfile.\n\
-`!showD` print the list of loaded notifications in the bot.\n\
-`!channels` print all channels and which ones are monitored by me.\n\
+`!chanlst` print all channels and which ones are monitored by me.\n\
 `!chanadd {id}` add the channel with the id to the monitored list.\n\
 `!chandel {id}` remove the channel from the monitored list.\n\
-`!uroles` print all roles that can use notification commands (non admin).\n\
-`!uroleadd {id}` give an extra role access to the notification bot.\n\
-`!uroledel {id}` take away permission of a role to access the notification bot.\n\
+`!rolelst` print all roles that can use notification commands (non admin).\n\
+`!roleadd {id} {user} {admin}` give arole access to the notification bot, {id} is the roleid as shown in !rolelst, {user} & {admin} are 1 or 0.\n\
+`!roledel {id}` delete a role from the database of the notification bot.\n\
 "
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
 \n\
 Unfortunately you do not have the proper permissions to use me, read #announcements for more information on how to donate to get access."
-  
+# --- End help messages ---
+
 @client.async_event
 def on_message(message):
-    if message.channel.id not in mon_channels and not message.channel.is_private:
+    global notifications_list
+    if message.channel.id not in chanmon() and not message.channel.is_private:
         return
     if message.author == client.user:
         return
     if message.channel.is_private:
-        if deny_access_to_func(message, 'user'):
+        if not roleacc(message, 'user'):
             yield from client.send_message(message.channel, noaccessmsg)
         elif '!help' == message.content[0:5]:
             returnmsg = helpmsg
-            if not deny_access_to_func(message, 'admin'):
+            if roleacc(message, 'admin'):
                 returnmsg += helpamsg
+                print(str(notifications_list))
             yield from client.send_message(message.channel, returnmsg)
 
+    # Handle incoming messages and filter them for keywords.
     try:
         yield from custom_notifications(message)
             
@@ -125,32 +113,23 @@ def on_message(message):
             print('probably some special character in message.content')
     yield from if_add(message)
     yield from if_delete(message)
-    access_admin = not deny_access_to_func(message, 'admin')
-    access_user = not deny_access_to_func(message, 'user')
+    access_admin = roleacc(message, 'admin')
+    access_user = roleacc(message, 'user')
     if '!update' == message.content[0:7] and access_admin:
-        update_dict()
-    elif '!showN' == message.content[0:6] and access_admin:
-        yield from show(message)
-    elif '!showD' == message.content[0:6] and access_admin:
-        yield from showD(message)
-    elif '!channels' == message.content[0:9] and access_admin:
-        yield from channels(message, 'show')
+        global notifications_list
+        notifications_list = updatedictionary()
+    elif '!chanlst' == message.content[0:8] and access_admin:
+        yield from chanlst(message)
     elif '!chanadd' == message.content[0:8] and access_admin:
-        yield from channels(message, 'add')
+        yield from chanadd(message)
     elif '!chandel' == message.content[0:8] and access_admin:
-        yield from channels(message, 'del')
-    elif '!chanup' == message.content[0:7] and access_admin:
-        yield from channels(message, 'update')
-    elif '!uroles' == message.content[0:7] and access_admin:
-        yield from urole(message, 'show')
-    elif '!uroleadd' == message.content[0:9] and access_admin:
-        yield from urole(message, 'add')
-    elif '!uroledel' == message.content[0:9] and access_admin:
-        yield from urole(message, 'del')
-    elif '!uroleup' == message.content[0:8] and access_admin:
-        yield from urole(message, 'update')
-    elif '!mynotifications' == message.content[0:16] and access_user:
-        yield from mynotifications(message)
+        yield from chandel(message)
+    elif '!roleadd' == message.content[0:8] and access_admin:
+        yield from roleadd(message)
+    elif '!roledel' == message.content[0:8] and access_admin:
+        yield from roledel(message)
+    elif '!rolelst' == message.content[0:8] and access_admin:
+        yield from rolelst(message)
     elif '!notifications' == message.content[0:14] and access_user:
         yield from mynotifications(message)
 
@@ -158,8 +137,10 @@ def on_message(message):
 
 
 # --- notification functions ---
-# General catch all for all speech to pick up on keywords
+# General catch all for all speech to pick up on keywords.
 def custom_notifications(message):
+    if message.channel.name == None:
+        return
     msglist = message.content.lower().split()
     embed = False
     if len(message.embeds) == 1:
@@ -169,9 +150,9 @@ def custom_notifications(message):
         msglist = msglist + title + desc
     ######
     # Loop through dictionary
-    for keyword in notifications_dict:
+    for keyword in notifications_list.keys():
         if keyword in msglist:
-            for user_id in notifications_dict[keyword]: # if empty, does nothing
+            for user_id in notifications_list[keyword]: # if empty, does nothing
                 if user_id == message.author.id:
                     print('same user')
                     pass
@@ -193,330 +174,386 @@ def custom_notifications(message):
                     print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
 
-# !notification {keyword}
+# !notify {keyword}
 def if_add(message):
     # message.author.id to add to files list
-    if '!notification ' == message.content[0:14]:
-        if deny_access_to_func(message, 'user'):
+    if '!notify ' == message.content[0:8]:
+        if not roleacc(message, 'user'):
             return
         msg = message.content.lower().split()
-        notifications_file = open('notifications.txt', 'r+')
-        # when keyword in file:
-        keyindict = False
-        if msg[1] in notifications_dict:
-            keyindict = True
-        
-        if keyindict:
-            willedit = True
-            newt = '#notifications#'
-            for line in notifications_file:
-                linelist = line.split()
-                if msg[1] == linelist[0]:
-                    if message.author.id in linelist: ## check for userid
-                        willedit = False
-
-                    if willedit == True:   
-                        linelist.append(message.author.id)
-                        newt += '\n'
-                        for element in linelist:
-                            newt += element + ' '
-                        newt = newt[:len(newt)-1] #gets rid of ending space
-                elif line != '#notifications#\n':
-                    newt += '\n' + line.strip('\n')
-
-            if willedit:
-                _rewrite(notifications_file, newt)
-  
+        if len(msg) != 2:
+            yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
         else:
-        # when keyword not in file: 
-            notifications_file.read()
-            notifications_file.write('\n' + msg[1] + ' ' + message.author.id)
-            notifications_file.close()
-            
-        update_dict()
-        if keyindict and not willedit:
-            yield from client.send_message(message.channel, 'Notification `{}` may already be set for `{}`.'.format(msg[1], message.author.name) )
-        else:
-            yield from client.send_message(message.channel, 'Added notification `{}`. To delete, use `!deletenotification [keyword]`'.format(msg[1]) )
+          keyword = msg[1]
+
+          db = db_connect()
+          c = db.cursor()
+          c.execute("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = LOWER('{}') AND discord_id = '{}';".format(keyword, message.author.id))
+          row = c.fetchone()
+          c.close()
+          db_close(db)
+          # when keyword in file:
+          if row is not None:
+              yield from client.send_message(message.channel, 'I am already tracking `{}` for you.'.format(keyword))
+          else:
+              db = db_connect()
+              c = db.cursor()
+              try:
+                  c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id) VALUES (%s, %s)""", (keyword.lower(), message.author.id))
+                  db.commit()
+              except MySQLdb.Error as e:
+                  db.rollback()
+                  print(str(e))
+
+              db_close(db)
+              global notifications_list
+              notifications_list = updatedictionary()
+              yield from client.send_message(message.channel, 'Added notification `{}`. To delete, use `!notifydel [keyword]`'.format(keyword))
 
             
-# !deletenotification {keyword}
+# !notifydel {keyword}
 def if_delete(message):
     # opens file list, finds line with the keyword, deletes message.author.id from it.
     # If empty dict, delete?
-    if '!deletenotification' == message.content[0:19]:
-        if deny_access_to_func(message, 'user'):
+    if '!notifydel' == message.content[0:10]:
+        if not roleacc(message, 'user'):
             return
-        notifications_file = open('notifications.txt', 'r+')
         msg = message.content.lower().split()
-        newt = '#notifications#'
-        willdelete = 0
-        for line in notifications_file:
-            if msg[1] == line.split()[0]: ## msg == key
-                willdelete=1
-                ## needs to keep the line and only delete message.author.id here, unless EMPTY
-                newlist = line.split()
-                try:
-                    newlist.remove(message.author.id) #remove only id
-                except ValueError:
-                    print('ValueError')
-                if not len(newlist) == 1: ## removes if no user ids left
-                    newt += '\n'
-                    for element in newlist:
-                        newt += element + ' '
-                    newt = newt[:len(newt)-1]
-            elif line != '#notifications#\n':
-                newt += '\n' + line.strip('\n')
-
-        if willdelete == 1:
-            _rewrite(notifications_file, newt)
-            update_dict()
-
-            yield from client.send_message(message.channel, "Deleted `{}`.".format(msg[1]) )
+        if len(msg) != 2:
+            yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
         else:
-            yield from client.send_message(message.channel, "Couldn't find.")
+            keyword = msg[1]
+            # instance of server for later use
+            server = client.get_server(discord_server)
+            # We expect these values.
+            chanid = msg[1]
+            db = db_connect()
+            c = db.cursor()
+            c.execute("""DELETE FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
+            deleted = c.rowcount
+            db.commit()
+            db_close(db)
+            if deleted > 0:
+                global notifications_list
+                notifications_list = updatedictionary()
+                yield from client.send_message(message.channel, "Deleted keyword `{}` from the tracking.".format(keyword))
+            else:
+                yield from client.send_message(message.channel, "I am not tracking keyword `{}` so nothing was deleted.".format(keyword))
 
-# !update
-def update_dict():
-    notifications_file = open('notifications.txt', 'r+')
-    global notifications_dict
-    notifications_dict = {}
-    for line in notifications_file:
-        linesplit = line.split()
-        notifications_dict[linesplit[0]] = linesplit[1:]
-    print('Updated.')
 
 # !notifications
 def mynotifications(message):
-    global notifications_dict
+    if not roleacc(message, 'user'):
+        return
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_keywords WHERE discord_id = '{}';".format(message.author.id))
+    data = c.fetchall()
+    c.close()
+    db_close(db)
     mine = []
-    for keyword in notifications_dict:
-        if message.author.id in notifications_dict[keyword]:
-            mine.append(keyword)
+    for i, d in enumerate(data):
+        mine.append(d[1])
     yield from client.send_message(message.channel, mine)
 
-# !showN
-def show(message):
-    n = open('notifications.txt', 'r+')
-    msg = '#notifications#'
-    for line in n:
-        if line != '#notifications#\n':
-            msg += '\n' + line.strip('\n')
-    yield from client.send_message(message.author, msg[:2000])
-    if len(msg) >= 2000:
-        #               1.1 -> 2 for math.ceil, sends extra message
-        for i in range(1, math.ceil(len(msg)/2000) ):
-            c1 = msg[i*2000:(i+1)*2000]
-            yield from client.send_message(message.author, c1)
-
-# !showD
-def showD(message):
-    global notifications_dict
-    msg = ''
-    for keyword in notifications_dict:
-        msg += '{} {}\n'.format(keyword, notifications_dict[keyword])
-    yield from client.send_message(message.author, msg[:2000])
-    if len(msg) >= 2000:
-        #               1 -> 2 if round returns 3, which prints 3msgs
-        for i in range(1, round(len(msg)/2000) ):
-            c1 = msg[i*2000:(i+1)*2000]
-            yield from client.send_message(message.author, c1)
+# Helper function to update the dictionary to loop through. Lowers the DB load.
+def updatedictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT keyword FROM notificationbot_keywords GROUP BY keyword ORDER BY keyword;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE keyword = '{}';".format(d[0]))
+        ids = c.fetchall()
+        c.close()
+        db_close(db)
+        k_ids = []
+        for i, id in enumerate(ids):
+            k_ids.append(id[0])
+        dict[d[0]] = k_ids
+    return dict
+    
 # --- End notification functions ---
             
 # --- channel methods ---
-# !channels !chanadd !chandel !chanup
-def channels(message, action):
-    global mon_channels
-    server = client.get_server(serverid)
-    if action == 'show': # Handle the displaying of all channels and mark which ones are monitored
-        msg = ''
-        msg += 'active\t' + 'Channels\n'
-
-        for channel in server.channels:
-          c_mon = '[o]' if channel.id in mon_channels else '[  ]'
-          msg += c_mon + '\t\t' + (channel.id + ': ' + channel.name) + '\n'
-        yield from client.send_message(message.author, msg[:2000])
-        if len(msg) >= 2000:
-            #               1 -> 2 if round returns 3, which prints 3msgs
-            for i in range(1, round(len(msg)/2000) ):
-                c1 = msg[i*2000:(i+1)*2000]
-                yield from client.send_message(message.author, c1)
-    elif action == 'add': # Handle channel additions
-        msg = message.content.lower().split()
-        # Make sure the channelid exists on the server
+# Function to add monitored channels to the database
+def chanadd(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        chanid = msg[1]
+        
+        # verify existence of rol on the server
         fakechan = True
-        channelfound = None
-        for channel in server.channels:
-            if channel.id == msg[1]:
+        chanfound = None
+        for chan in server.channels:
+            if chan.id == chanid:
                 fakechan = False
-                channelfound = channel
+                chanfound = chan
                 break
         if fakechan:
-            yield from client.send_message(message.channel, 'Channel with id `{}` does not exist for this server.'.format(msg[1]))
-            return
-        # when channel in file:
-        channel_file = open('channels.txt', 'r+')
-        channelindict = False
-
-        if msg[1] in mon_channels:
-            channelindict = True
-        
-        if not channelindict:
-            channel_file.read()
-            channel_file.write('\n' + msg[1] + ': ' + channelfound.name)
-            channel_file.close()
-        # Update the channel file.
-        chanup()
-        if channelindict:
-            yield from client.send_message(message.channel, 'Channel with id `{}` already in list.'.format(msg[1]) )
+            yield from client.send_message(message.channel, "The channel id you're trying to add doesn't exist, please verify and retry.")
         else:
-            yield from client.send_message(message.channel, 'Channel *{}* with id `{}` added. To delete, use `!channeldel [id]`'.format(channelfound.name, msg[1]) )
-
-    elif action == 'del': # Handle deletion from the channel list
-        channel_file = open('channels.txt', 'r+')
-        msg = message.content.lower().split()
-        willdelete = False
-        channels_tmp = ""
-
-        # cycle through the file
-        for line in channel_file:
-            chanfo = line.split(': ')
-            # keep the file if the key doesn't match the search, if it is found, flag for rewrite
-            if msg[1] != chanfo[0]:
-                nl = '\n'
-                if channels_tmp == '':
-                    nl = ''
-                channels_tmp += nl + line.strip('\n')
+            # See if the id exists in the database
+            db = db_connect()
+            c = db.cursor()
+            c.execute("SELECT * FROM notificationbot_channels WHERE channel_id = '{}';".format(chanid))
+            row = c.fetchone()
+            c.close()
+            db_close(db)
+            
+            # If the result exists, return
+            if row is not None:
+                yield from client.send_message(message.channel, "Channel `{}` already exists in the database".format(chanfound.name))
+            # If the result doesn't exist, create a new entry
             else:
-                willdelete = True
-        
-        if channels_tmp == '':
-            yield from client.send_message(message.channel, 'You need at least 1 channel in this list, add another one before removing this one')
+                db = db_connect()
+                c = db.cursor()
+                try:
+                    c.execute("""INSERT INTO notificationbot_channels (channel_id, channel_name) VALUES (%s, %s)""", (chanfound.id, chanfound.name))
+                    db.commit()
+                except MySQLdb.Error as e:
+                    db.rollback()
+                    print(str(e))
 
-        if willdelete:
-            _rewrite(channel_file, channels_tmp)
-            # Update the channel file, we have to use the whole snippet because sequential function calls bug out sometimes.
-            channel_file = open('channels.txt', 'r+')
-            mon_channels = []
-            for line in channel_file:
-                channelinfo = line.split(": ")
-                mon_channels.append(channelinfo[0])
-            print('Channels updated.')
-            yield from client.send_message(message.channel, "Channel with id `{}` no longer monitored.".format(msg[1]) )
+                db_close(db)
+                yield from client.send_message(message.channel, "Added channel `{}` to the database".format(chanfound.name))
+
+# Function to delete a channel from the database
+def chandel(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        chanid = msg[1]
+        db = db_connect()
+        c = db.cursor()
+        c.execute("""DELETE FROM notificationbot_channels WHERE channel_id=%s""", (chanid,))
+        deleted = c.rowcount
+        db.commit()
+        db_close(db)
+        if deleted > 0:
+            yield from client.send_message(message.channel, "Deleted channel with id `{}` from the database.".format(chanid))
         else:
-            yield from client.send_message(message.channel, "Couldn't find channel with id `{}`.".format(msg[1]))
-    elif action == 'update': # Handle the updates to the physical file on the drive
-        chanup()
-        yield from client.send_message(message.channel, "Channellist updated.")
+            yield from client.send_message(message.channel, "Channel with id `{}` doesn't exist in the database.".format(chanid))
 
-def chanup():
-    channel_file = open('channels.txt', 'r+')
-    global mon_channels
-    mon_channels = []
-    for line in channel_file:
-        channelinfo = line.split(": ")
-        mon_channels.append(channelinfo[0])
-    print('Channels updated.')
+# Function to list all channels in the database & if they are monitored
+def chanlst(message):
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_channels")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+
+    msg = '```'
+    msg += '-- Channels  --'.ljust(50) + 'monitored\n'
+    # Get all channels from server
+    server = client.get_server(discord_server)
+    for chan in server.channels:
+        r_mon = '[*]' if chan.id in chanmon() else '[ ]'
+
+        msg += (chan.id + ': ' + chan.name).ljust(50) + r_mon.ljust(7) + '\n'
+    msg += '```'
+    yield from client.send_message(message.author, msg[:2000])
+    if len(msg) >= 2000:
+        for i in range(1, round(len(msg)/2000) ):
+            c1 = msg[i*2000:(i+1)*2000]
+            yield from client.send_message(message.author, c1)
+            
+# Helper function to check monitored channels
+def chanmon():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_channels")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    # Build a list of monitored channels
+    channels = []
+    for i, d in enumerate(data):
+        channels.append(d[1])
+    # return all monitored channels
+    return channels
 
 # --- End channel methods ---
 
-# --- Normale user role methods ---
-# !uroles !uroleadd !uroledel !uroleup
-def urole(message, action):
-    global users_list
-    server = client.get_server(serverid)
-    if action == 'show': # Handle the displaying of all channels and mark which ones are monitored
-        msg = ''
-        msg += 'active\t' + 'Roles\n'
-
-        for role in server.roles:
-          c_mon = '[o]' if role.id in users_list else '[  ]'
-          msg += c_mon + '\t\t' + (role.id + ': ' + role.name) + '\n'
-        yield from client.send_message(message.author, msg[:2000])
-        if len(msg) >= 2000:
-            #               1 -> 2 if round returns 3, which prints 3msgs
-            for i in range(1, round(len(msg)/2000) ):
-                c1 = msg[i*2000:(i+1)*2000]
-                yield from client.send_message(message.author, c1)
-    elif action == 'add': # Handle channel additions
-        msg = message.content.lower().split()
-        # Make sure the channelid exists on the server
+# --- User role methods ---
+# Function to add roles to the database
+def roleadd(message):
+    msg = message.content.lower().split()
+    if len(msg) != 4:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        roleid = msg[1]
+        user = int(msg[2])
+        admin = int(msg[3])
+        
+        # verify existence of rol on the server
         fakerole = True
         rolefound = None
         for role in server.roles:
-            if role.id == msg[1]:
+            if role.id == roleid:
                 fakerole = False
                 rolefound = role
                 break
         if fakerole:
-            yield from client.send_message(message.channel, 'Role with id `{}` does not exist for this server.'.format(msg[1]))
-            return
-        # when channel in file:
-        users_file = open('users.txt', 'r+')
-        userinlist = False
-
-        if msg[1] in users_list:
-            userinlist = True
-        
-        if not userinlist:
-            users_file.read()
-            users_file.write('\n' + msg[1] + ': ' + rolefound.name)
-            users_file.close()
-        # Update the channel file.
-        uroleup()
-        if userinlist:
-            yield from client.send_message(message.channel, 'Role with id `{}` already in list.'.format(msg[1]) )
+            yield from client.send_message(message.channel, "The role id you're trying to add doesn't exist, please verify and retry.")
         else:
-            yield from client.send_message(message.channel, 'Role *{}* with id `{}` added. To delete, use `!channeldel [id]`'.format(rolefound.name, msg[1]) )
-
-    elif action == 'del': # Handle deletion from the channel list
-        users_file = open('users.txt', 'r+')
-        msg = message.content.lower().split()
-        willdelete = False
-        roles_tmp = ""
-
-        # cycle through the file
-        for line in users_file:
-            rolnfo = line.split(': ')
-            # keep the file if the key doesn't match the search, if it is found, flag for rewrite
-            if msg[1] != rolnfo[0]:
-                nl = '\n'
-                if roles_tmp == '':
-                    nl = ''
-                roles_tmp += nl + line.strip('\n')
+            # See if the id exists in the database
+            db = db_connect()
+            c = db.cursor()
+            c.execute("SELECT * FROM notificationbot_roles WHERE roleid = '{}';".format(roleid))
+            row = c.fetchone()
+            c.close()
+            db_close(db)
+            
+            # If the result exists, update the value.
+            if row is not None:
+                db = db_connect()
+                c = db.cursor()
+                try:
+                    c.execute ("""UPDATE notificationbot_roles SET user=%s, admin=%s WHERE roleid=%s""", (user, admin, roleid))
+                    db.commit()
+                except:
+                    db.rollback()
+                db_close(db)
+                yield from client.send_message(message.channel, "Updated role `{}` to the database [admin={}, user={}]".format(rolefound.name, admin, user))
+            # If the result doesn't exist, create a new entry
             else:
-                willdelete = True
-        
-        if roles_tmp == '':
-            yield from client.send_message(message.channel, 'You need at least 1 channel in this list, add another one before removing this one')
+                db = db_connect()
+                c = db.cursor()
+                try:
+                    c.execute("""INSERT INTO notificationbot_roles (roleid, rolename, user, admin) VALUES (%s, %s, %s,%s)""", (rolefound.id, rolefound.name, user, admin))
+                    db.commit()
+                except:
+                    db.rollback()
 
-        if willdelete:
-            _rewrite(users_file, roles_tmp)
-            # Update the channel file, we have to use the whole snippet because sequential function calls bug out sometimes.
-            users_file = open('users.txt', 'r+')
-            users_list = []
-            for line in users_file:
-                rolnfo = line.split(": ")
-                users_list.append(rolnfo[0])
-            print('User roles updated.')
-            yield from client.send_message(message.channel, "Role with id `{}` has no access anymore to the bot.".format(msg[1]) )
+                db_close(db)
+                yield from client.send_message(message.channel, "Added role `{}` to the database [admin={}, user={}]".format(rolefound.name, admin, user))
+
+# Function to delete a role from the database
+def roledel(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        roleid = msg[1]
+        if roleid in protected_roles:
+            yield from client.send_message(message.channel, "The role with id `{}` is protected and can't be deleted.".format(roleid))
+            return
+        db = db_connect()
+        c = db.cursor()
+        c.execute("""DELETE FROM notificationbot_roles WHERE roleid=%s""", (roleid,))
+        deleted = c.rowcount
+        db.commit()
+        db_close(db)
+        if deleted > 0:
+            yield from client.send_message(message.channel, "Deleted role with id `{}` from the database.".format(roleid))
         else:
-            yield from client.send_message(message.channel, "Couldn't find role with id `{}`.".format(msg[1]))
-    elif action == 'update': # Handle the updates to the physical file on the drive
-        uroleup()
-        yield from client.send_message(message.channel, "Roles updated.")
+            yield from client.send_message(message.channel, "Role with id `{}` doesn't exist in the database.".format(roleid))
 
-def uroleup():
-    users_file = open('users.txt', 'r+')
-    global users_list
-    users_list = []
-    for line in users_file:
-        roleinfo = line.split(": ")
-        users_list.append(roleinfo[0])
-    print('User roles updated.')
-        
+# Function to list all roles in the database & their permissions
+def rolelst(message):
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_roles")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    # Build a dict from roles from the db
+    roles = {}
+    for i, d in enumerate(data):
+        chunk = {}
+        chunk['name'] = d[2]
+        chunk['user'] = d[3]
+        chunk['admin'] = d[4]
+        roles[d[1]] = chunk
+    msg = '```'
+    msg += '-- Roles  --'.ljust(50) + 'admin'.ljust(7) + 'user'.ljust(7) + 'protected\n'
 
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    for role in server.roles:
+        in_db = role.id in roles.keys()
+        r_ad = '[*]' if in_db and roles[role.id]['admin'] == 1 else '[ ]'
+        r_us = '[*]' if in_db and roles[role.id]['user'] == 1 else '[ ]'
+        r_pr = '[*]' if role.id in protected_roles else '[ ]'
+        msg += (role.id + ': ' + role.name).ljust(50) + r_ad.ljust(7) + r_us.ljust(7) + r_pr + '\n'
+    msg += '```'
+    yield from client.send_message(message.author, msg[:2000])
+    if len(msg) >= 2000:
+        for i in range(1, round(len(msg)/2000) ):
+            c1 = msg[i*2000:(i+1)*2000]
+            yield from client.send_message(message.author, c1)
+
+# Helper function to check permissions
+def roleacc(message, group):
+    # If the user is a bot, always passthrough
+    if message.author.bot:
+        return True
+    # distinguish whether the user is high privileged than @everyone
+    stopUnauth = False
+    # in PM determine the user roles from the server settings.
+    if message.author.__class__.__name__ ==  'User':
+        msrv = client.get_server(discord_server)
+        usr = msrv.get_member(message.author.id)
+    # in channel message, the Member object is available directly
+    elif message.author.__class__.__name__ ==  'Member':
+        usr = message.author
+    else:
+        return stopUnauth
+    try:
+        getattr(usr, 'roles') 
+    except AttributeError:
+        print("-- Debug info -- ")
+        print("type: " + message.type.name)
+        print("channel: " + message.channel.name)
+        print("bot: " + str(message.author.bot))
+        return stopUnauth
+    else:
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT * FROM notificationbot_roles")
+        data = c.fetchall()
+        c.close()
+        db_close(db)
+        # Build a dict from roles from the db
+        roles = {}
+        for i, d in enumerate(data):
+            chunk = {}
+            chunk['name'] = d[2]
+            chunk['user'] = d[3]
+            chunk['admin'] = d[4]
+            roles[d[1]] = chunk
+        # Cycle through the roles on the user object
+        for role in usr.roles:
+           if role.id in roles.keys() and roles[role.id][group] == 1:
+             stopUnauth = True
+             break         
+        return stopUnauth
+      
 # --- End normal user role methods ---
+
+
 
 # --- Helper Methods ---
             
@@ -530,53 +567,22 @@ def _rewrite(file, newfile):
     file.truncate(0)
     file.seek(0)
     file.write(newfile)
-
-def deny_access_to_func(message, group):
-    if message.author.bot:
-        return False
-    # distinguish whether the user is high privileged than @everyone
-    stopUnauth = True
-    # in PM determine the user roles from the server settings.
-    if message.author.__class__.__name__ ==  'User':
-        msrv = client.get_server(serverid)
-        usr = msrv.get_member(message.author.id)
-    # in channel message, the Member object is available directly
-    elif message.author.__class__.__name__ ==  'Member':
-        usr = message.author
-    else:
-        return stopUnauth
-        
-    try:
-        getattr(usr, 'roles') 
-    except AttributeError:
-        print("-- Debug info -- ")
-        print("type: " + message.type.name)
-        print("channel: " + message.channel.name)
-        print("bot: " + str(message.author.bot))
-        print("clean message: " + message.clean_content)
-        print("message: " + message.content)
-        print("system message: " + message.system_content)
-        print("embeds: " + str(message.embeds))
-        return stopUnauth
-    else:
-      if group == 'admin':
-          role_list = admin_list
-      elif group == 'user':
-          role_list = users_list
-      else:
-          return False
-      roles = usr.roles
-      for role in roles:
-         if role.id in role_list:
-           stopUnauth = False
-           break         
-      return stopUnauth
-
 # --- End helper Methods ---
+
+# --- db functions ---
+# Helper function to execute a query and return the results in a list object
+def db_connect():
+    # Setup the db connection with the global params
+    connection = MySQLdb.connect(host=sql_host, port=sql_port, user=sql_user, passwd=sql_pass, db=sql_db)
+    return connection
+    
+def db_close(connection):
+    connection.close()
+# --- End db functions ---
 
 loop = asyncio.get_event_loop()
 try:
-    loop.run_until_complete(client.login(user, passw))
+    loop.run_until_complete(client.login(discord_user, discord_pass))
     loop.run_until_complete(client.connect())
 except Exception:
     loop.run_until_complete(client.close())

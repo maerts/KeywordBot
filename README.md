@@ -16,14 +16,13 @@ Setup requirements
 After setting those up execute the following commands
 - pip3 install git+https://github.com/Rapptz/discord.py@async
 - pip3 install requests
+- pip3 install mysqlclient
+- pip3 install configparser
 
 
 Initial configuration
 -------------
-- options.txt    - add the user mail, password and the server ID where you want the bot to be active
-- admin.txt      - the roles that can execute admin commands
-- users.txt      - the roles that can use the bot normally
-- channels.txt   - the channels the bot monitors
+- the config.ini file should be self-explanatory. You can set the discord user, the server, the database settings and the protected roles (those that can't be deleted through bot commands) 
  
 Running the bot
 ---------------
@@ -31,12 +30,7 @@ Running the bot
 
 
 
-
-
-
-
 TODO
 -----
-- Cleanup of the code
 - Extend manageability from direct commands
 - add instructions on how to run it as a daemon

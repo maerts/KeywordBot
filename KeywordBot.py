@@ -82,6 +82,7 @@ Admin commands\n\
 `!rolelst` print all roles that can use notification commands (non admin).\n\
 `!roleadd {id} {user} {admin}` give arole access to the notification bot, {id} is the roleid as shown in !rolelst, {user} & {admin} are 1 or 0.\n\
 `!roledel {id}` delete a role from the database of the notification bot.\n\
+`!keywordcleanup` this force cleans the notification database (old users and their notifications will be purged)\n\
 "
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
@@ -133,6 +134,8 @@ def on_message(message):
         yield from roledel(message)
     elif '!rolelst' == message.content[0:8] and access_admin:
         yield from rolelst(message)
+    elif '!keywordcleanup' == message.content[0:15] and access_admin:
+        yield from keywords_cleanup(message)
     elif '!notifications' == message.content[0:14] and access_user:
         yield from mynotifications(message)
 
@@ -252,6 +255,49 @@ def if_delete(message):
                 yield from client.send_message(message.channel, "Deleted keyword `{}` from the tracking.".format(keyword))
             else:
                 yield from client.send_message(message.channel, "I am not tracking keyword `{}` so nothing was deleted.".format(keyword))
+
+# !keywordcleanup
+def keywords_cleanup(message):
+    global roles_list
+    # opens file list, finds line with the keyword, deletes message.author.id from it.
+    # If empty dict, delete?
+    if not roleacc(message, 'admin'):
+        return
+    # instance of server for later use
+    server = client.get_server(discord_server)
+    # build up the list of users that don't have access anymore
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT discord_id FROM notificationbot_keywords GROUP BY discord_id;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    cleanup = []
+    for i, d in enumerate(data):
+        usr = server.get_member(d[0])
+        clean = True
+        for role in usr.roles:
+            if role.id in roles_list.keys() and (roles_list[role.id]['user'] == 1 or roles_list[role.id]['admin'] == 1):
+                clean = False
+        if clean:
+            cleanup.append(d[0])    
+    
+    # Force a cleanup of the ID's found that have a role without permissions
+    db = db_connect()
+    c = db.cursor()    
+    query = "DELETE FROM notificationbot_keywords WHERE discord_id in ({})".format(','.join(map(str,cleanup)))
+    c.execute(query)
+    deleted = c.rowcount
+    db.commit()
+    db_close(db)
+    if deleted > 0:
+        global notifications_list
+        notifications_list = updatedictionary()
+        yield from client.send_message(message.channel, "Deleted `{}` keyword notifications from the tracking.".format(deleted))
+    else:
+        yield from client.send_message(message.channel, "Something went wrong cleaning up the list, make sure the database is up & running.")
+      
+
 
 
 # !notifications

@@ -90,6 +90,7 @@ Admin commands\n\
 `!roleadd {id} {user} {admin}` give arole access to the notification bot, {id} is the roleid as shown in !rolelst, {user} & {admin} are 1 or 0.\n\
 `!roledel {id}` delete a role from the database of the notification bot.\n\
 `!keywordcleanup` this force cleans the notification database (old users and their notifications will be purged)\n\
+`!botstats` this returns userdata in the bot.\n\
 "
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
@@ -145,6 +146,8 @@ def on_message(message):
         yield from rolelst(message)
     elif '!keywordcleanup' == message.content[0:15] and access_admin:
         yield from keywords_cleanup(message)
+    elif '!botstats' == message.content[0:9] and access_admin:
+        yield from botstats(message)
     elif '!notifications' == message.content[0:14] and access_user:
         yield from mynotifications(message)
 
@@ -517,13 +520,6 @@ def chandel(message):
 # Function to list all channels in the database & if they are monitored
 def chanlst(message):
     global channel_list
-    db = db_connect()
-    c = db.cursor()
-    c.execute("SELECT * FROM notificationbot_channels")
-    data = c.fetchall()
-    c.close()
-    db_close(db)
-
     msg = '```'
     msg += '-- Channels  --'.ljust(50) + 'monitored\n'
     # Get all channels from server
@@ -721,6 +717,45 @@ def rolesdictionary():
 # --- End normal user role methods ---
 
 # --- Helper Methods ---
+
+# !botstats Helper function to print all statistics
+def botstats(message):
+    global roles_list
+    global channel_list
+    server = client.get_server(discord_server)
+
+    otp = '```'
+    otp += '\n\n-- user  --'.ljust(50) + 'keywords\n'
+    # Get all channels from server
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_keywords;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        if d[2] not in dict:
+            empty = []
+            empty.append(d[1])
+            dict[d[2]] = empty
+        else:
+            empty = dict[d[2]]
+            empty.append(d[1])
+            dict[d[2]] = empty
+        
+    for key in dict.keys():
+        usr = server.get_member(key)
+        otp += (usr.name + ' (' + key + ')').ljust(50) + str(dict[key]) + '\n'
+
+    otp += '```'
+    yield from client.send_message(message.author, otp[:2000])
+    if len(otp) >= 2000:
+        for i in range(1, round(len(otp)/2000) ):
+            c1 = otp[i*2000:(i+1)*2000]
+            yield from client.send_message(message.author, c1)
+        
+
 # --- db functions ---
 # Helper function to execute a query and return the results in a list object
 def db_connect():

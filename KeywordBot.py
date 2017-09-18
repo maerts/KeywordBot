@@ -23,9 +23,13 @@ sql_port = int(config.get('sql', 'sql.port'))
 sql_db = config.get('sql', 'sql.db')
 # - protected roles
 protected_roles = config.get('protected', 'protected.roles')
+# - parse bot info
+bot_spawn = config.get('bot', 'bot.spawn')
+bot_raid = config.get('bot', 'bot.raid')
 
 # Create dictionaries placeholders, on_ready they will be filled up from db.
 notifications_list = {}
+notifraid_list = {}
 roles_list = {}
 channel_list = []
 
@@ -45,9 +49,11 @@ def on_member_join(member):
 @client.async_event
 def on_ready():
     global notifications_list
+    global notifraid_list
     global channel_list
     global roles_list
     notifications_list = updatedictionary()
+    notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
     roles_list = rolesdictionary()
     print('Connected! Ready to notify.')
@@ -67,10 +73,10 @@ def on_ready():
 # The !help message for normal users
 helpmsg = "Hi I'm a notification bot!\n\
 \n\
-`!notify {keyword}` to add a skype-like notification\n\
-`!notifydel {keyword}` to delete it.\n\
+`!notify {keyword} {raid} {spawn}` to add/update a PM notification about a certain pokemon raid and/or spawn. The value for raid/spawn is either 1 to track or 0 to not track. Example: `!notify tyranitar 1 1`\n\
+`!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
 `!notifications` for a list of your current notifications.\n\
-Example: `MomoBot mentioned {keyword} in {channel-name}:` Hi {keyword}!"
+"
 
 # The !help message for admin users
 helpamsg = "\n\n\
@@ -93,6 +99,7 @@ Unfortunately you do not have the proper permissions to use me, read #announceme
 @client.async_event
 def on_message(message):
     global notifications_list
+    global notifraid_list
     global channel_list
     if message.channel.id not in channel_list and not message.channel.is_private:
         return
@@ -122,6 +129,7 @@ def on_message(message):
     access_user = roleacc(message, 'user')
     if '!update' == message.content[0:7] and access_admin:
         notifications_list = updatedictionary()
+        notifraid_list = updateraiddictionary()
     elif '!chanlst' == message.content[0:8] and access_admin:
         yield from chanlst(message)
     elif '!chanadd' == message.content[0:8] and access_admin:
@@ -147,6 +155,7 @@ def on_message(message):
 def custom_notifications(message):
     global roles_list
     global notifications_list
+    global notifraid_list
     server = client.get_server(discord_server)
     if message.channel.name == None:
         return
@@ -158,36 +167,66 @@ def custom_notifications(message):
         desc = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['description']).lower().split()
         msglist = msglist + title + desc
     ######
-    # Loop through dictionary
-    for keyword in notifications_list.keys():
+    # Loop through raids
+    if message.author.name == bot_raid:
+        for keyword in notifraid_list.keys():
+            if keyword in msglist:
+                for user_id in notifraid_list[keyword]: # if empty, does nothing
+                    # Make sure we don't notify users whose access has been revoked
+                    usr = server.get_member(user_id)
+                    revoke = True
+                    for role in usr.roles:
+                        if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                            revoke = False
+                            break
+                    if user_id == message.author.id or revoke:
+                        print('Invalid user: same user or role with access revoked')
+                        pass
+                    elif embed:
+                        try:
+                            emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
+                            emb_desc = str(message.embeds[0]['description'])
+                            emb_url = str(message.embeds[0]['url'])
+                            emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                            emb.set_image(url=str(message.embeds[0]['image']['url']))
+                            emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                        except discord.DiscordException as de:
+                            print(str(de.message))
+                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                    else:
+                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
+    elif message.author.name == bot_spawn:
         if keyword in msglist:
-            for user_id in notifications_list[keyword]: # if empty, does nothing
-                # Make sure we don't notify users whose access has been revoked
-                usr = server.get_member(user_id)
-                revoke = True
-                for role in usr.roles:
-                    if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
-                        revoke = False
-                        break
-                if user_id == message.author.id or revoke:
-                    print('Invalid user: same user or role with access revoked')
-                    pass
-                elif embed:
-                    try:
-                        emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
-                        emb_desc = str(message.embeds[0]['description'])
-                        emb_url = str(message.embeds[0]['url'])
-                        emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
-                        emb.set_image(url=str(message.embeds[0]['image']['url']))
-                        emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
-                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
-                    except discord.DiscordException as de:
-                        print(str(de.message))
-                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                    print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                else:
-                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
-                    print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
+              for user_id in notifications_list[keyword]: # if empty, does nothing
+                  # Make sure we don't notify users whose access has been revoked
+                  usr = server.get_member(user_id)
+                  revoke = True
+                  for role in usr.roles:
+                      if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                          revoke = False
+                          break
+                  if user_id == message.author.id or revoke:
+                      print('Invalid user: same user or role with access revoked')
+                      pass
+                  elif embed:
+                      try:
+                          emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
+                          emb_desc = str(message.embeds[0]['description'])
+                          emb_url = str(message.embeds[0]['url'])
+                          emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                          emb.set_image(url=str(message.embeds[0]['image']['url']))
+                          emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                          yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                      except discord.DiscordException as de:
+                          print(str(de.message))
+                          yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                      print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                  else:
+                      yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                      print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
 
 # !notify {keyword}
@@ -197,10 +236,12 @@ def if_add(message):
         if not roleacc(message, 'user'):
             return
         msg = message.content.lower().split()
-        if len(msg) != 2:
+        if len(msg) != 4:
             yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
         else:
           keyword = msg[1]
+          raid = msg[2]
+          spawn = msg[3]
 
           db = db_connect()
           c = db.cursor()
@@ -210,12 +251,20 @@ def if_add(message):
           db_close(db)
           # when keyword in file:
           if row is not None:
-              yield from client.send_message(message.channel, 'I am already tracking `{}` for you.'.format(keyword))
+              db = db_connect()
+              c = db.cursor()
+              try:
+                  c.execute ("""UPDATE notificationbot_keywords SET raid=%s, spawn=%s WHERE discord_id=%s AND keyword=%s""", (raid, spawn, message.author.id, keyword.lower()))
+                  db.commit()
+              except:
+                  db.rollback()
+              db_close(db)
+              yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
           else:
               db = db_connect()
               c = db.cursor()
               try:
-                  c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id) VALUES (%s, %s)""", (keyword.lower(), message.author.id))
+                  c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn) VALUES (%s, %s, %s, %s)""", (keyword.lower(), message.author.id, int(raid), int(spawn)))
                   db.commit()
               except MySQLdb.Error as e:
                   db.rollback()
@@ -223,8 +272,10 @@ def if_add(message):
 
               db_close(db)
               global notifications_list
+              global notifraid_list
               notifications_list = updatedictionary()
-              yield from client.send_message(message.channel, 'Added notification `{}`. To delete, use `!notifydel [keyword]`'.format(keyword))
+              notifraid_list = updateraiddictionary()
+              yield from client.send_message(message.channel, 'Added notification `{} [raid: {}|spawn: {}]`. To delete, use `!notifydel [keyword]`'.format(keyword, raid, spawn))
 
             
 # !notifydel {keyword}
@@ -252,6 +303,8 @@ def if_delete(message):
             if deleted > 0:
                 global notifications_list
                 notifications_list = updatedictionary()
+                global notifraid_list
+                notifraid_list = updateraiddictionary()
                 yield from client.send_message(message.channel, "Deleted keyword `{}` from the tracking.".format(keyword))
             else:
                 yield from client.send_message(message.channel, "I am not tracking keyword `{}` so nothing was deleted.".format(keyword))
@@ -293,12 +346,12 @@ def keywords_cleanup(message):
     if deleted > 0:
         global notifications_list
         notifications_list = updatedictionary()
+        global notifraid_list
+        notifraid_list = updateraiddictionary()
         yield from client.send_message(message.channel, "Deleted `{}` keyword notifications from the tracking.".format(deleted))
     else:
         yield from client.send_message(message.channel, "Something went wrong cleaning up the list, make sure the database is up & running.")
       
-
-
 
 # !notifications
 def mynotifications(message):
@@ -310,16 +363,29 @@ def mynotifications(message):
     data = c.fetchall()
     c.close()
     db_close(db)
-    mine = []
+    raid = []
+    spawn = []
     for i, d in enumerate(data):
-        mine.append(d[1])
-    yield from client.send_message(message.channel, mine)
+        # if raids
+        if d[3] == 1:
+            raid.append(d[1])
+        # if spawns
+        if d[4] == 1:
+            spawn.append(d[1])
+    notifications = "```\
+    Right now I'm tracking the following information for you. Use !help to look at the commands.\n\
+    Raids\n\
+    " + str(raid) + "\n\
+    Spawns\n\
+    " + str(spawn) + "```\n"
+    
+    yield from client.send_message(message.channel, notifications)
 
 # Helper function to update the dictionary to loop through. Lowers the DB load.
 def updatedictionary():
     db = db_connect()
     c = db.cursor()
-    c.execute("SELECT keyword FROM notificationbot_keywords GROUP BY keyword ORDER BY keyword;")
+    c.execute("SELECT keyword FROM notificationbot_keywords GROUP BY keyword, spawn HAVING spawn = 1 ORDER BY keyword;")
     data = c.fetchall()
     c.close()
     db_close(db)
@@ -327,7 +393,7 @@ def updatedictionary():
     for i, d in enumerate(data):
         db = db_connect()
         c = db.cursor()
-        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE keyword = '{}';".format(d[0]))
+        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE spawn = 1 AND keyword = '{}';".format(d[0]))
         ids = c.fetchall()
         c.close()
         db_close(db)
@@ -336,7 +402,28 @@ def updatedictionary():
             k_ids.append(id[0])
         dict[d[0]] = k_ids
     return dict
-    
+
+# Helper function to update the dictionary to loop through. Lowers the DB load.
+def updateraiddictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT keyword FROM notificationbot_keywords GROUP BY keyword, raid HAVING raid = 1 ORDER BY keyword;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE raid = 1 AND keyword = '{}';".format(d[0]))
+        ids = c.fetchall()
+        c.close()
+        db_close(db)
+        k_ids = []
+        for i, id in enumerate(ids):
+            k_ids.append(id[0])
+        dict[d[0]] = k_ids
+    return dict
 # --- End notification functions ---
 
 

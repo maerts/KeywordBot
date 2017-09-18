@@ -29,7 +29,7 @@ CREATE TABLE `notificationbot_channels` (
   PRIMARY KEY (`id`),
   KEY `channel_id` (`channel_id`),
   KEY `channel_name` (`channel_name`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -38,7 +38,7 @@ CREATE TABLE `notificationbot_channels` (
 
 LOCK TABLES `notificationbot_channels` WRITE;
 /*!40000 ALTER TABLE `notificationbot_channels` DISABLE KEYS */;
-INSERT INTO `notificationbot_channels` VALUES (1,'334898180154195971','london-raids-3'),(2,'272445393995038721','london-all_sightings'),(3,'284161023135580181','london-rares'),(4,'307699757659324416','london-ultra-rares'),(5,'334898831516893184','london-raids-4'),(6,'335417354894835713','london-raids-1_2'),(7,'337970455736614913','london-raids-legendary'),(8,'352096637008478219','london-dt-sightings');
+INSERT INTO `notificationbot_channels` VALUES (1,'334898180154195971','london-raids-3'),(2,'272445393995038721','london-all_sightings'),(3,'284161023135580181','london-rares'),(4,'307699757659324416','london-ultra-rares'),(5,'334898831516893184','london-raids-4'),(6,'335417354894835713','london-raids-1_2'),(7,'337970455736614913','london-raids-legendary'),(8,'352096637008478219','london-dt-sightings'),(10,'284905790123409409','testing_grounds');
 /*!40000 ALTER TABLE `notificationbot_channels` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -53,10 +53,12 @@ CREATE TABLE `notificationbot_keywords` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `keyword` varchar(100) DEFAULT NULL,
   `discord_id` varchar(50) DEFAULT NULL,
+  `raid` tinyint(4) DEFAULT '0',
+  `spawn` tinyint(4) DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `keyword` (`keyword`),
   KEY `discord_id` (`discord_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -65,7 +67,7 @@ CREATE TABLE `notificationbot_keywords` (
 
 LOCK TABLES `notificationbot_keywords` WRITE;
 /*!40000 ALTER TABLE `notificationbot_keywords` DISABLE KEYS */;
-INSERT INTO `notificationbot_keywords` VALUES (2,'tyranitar','341730842303004673'),(3,'gym','341730842303004673');
+INSERT INTO `notificationbot_keywords` VALUES (2,'tyranitar','341730842303004673',1,1),(6,'unown','341730842303004673',0,1),(9,'magikarp','308720902827409409',0,1),(10,'gyarados','308720902827409409',0,1),(11,'unown','205342915034087424',0,1),(12,'jackson','205342915034087424',0,1),(13,'blissey','205342915034087424',0,1),(14,'tyranitar','205342915034087424',0,1),(15,'dragonite','205342915034087424',0,1),(17,'dugtrio','308720902827409409',0,1),(18,'grimer','341730842303004673',1,0);
 /*!40000 ALTER TABLE `notificationbot_keywords` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -86,7 +88,7 @@ CREATE TABLE `notificationbot_roles` (
   UNIQUE KEY `id_UNIQUE` (`id`),
   KEY `roleid` (`roleid`),
   KEY `rolename` (`rolename`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1 COMMENT='All the user roles with their respective powers';
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=latin1 COMMENT='All the user roles with their respective powers';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -95,7 +97,7 @@ CREATE TABLE `notificationbot_roles` (
 
 LOCK TABLES `notificationbot_roles` WRITE;
 /*!40000 ALTER TABLE `notificationbot_roles` DISABLE KEYS */;
-INSERT INTO `notificationbot_roles` VALUES (4,'322740968942075914','Donor-Lnd',1,1),(5,'282517299070763009','Admin',1,1),(8,'301346383183609856','Code Commander',1,1);
+INSERT INTO `notificationbot_roles` VALUES (4,'322740968942075914','Donor-Lnd',1,1),(5,'282517299070763009','Admin',1,1),(8,'301346383183609856','Code Commander',1,1),(10,'293540247294312448','Chat-Mods',1,1),(11,'345583835901329408','bot-commander',1,1);
 /*!40000 ALTER TABLE `notificationbot_roles` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -108,4 +110,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-09-16 18:04:25
+-- Dump completed on 2017-09-18 13:49:13

@@ -276,6 +276,7 @@ def if_add(message):
                       db.commit()
                   except:
                       db.rollback()
+                  c.close()
                   db_close(db)
                   yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
               else:
@@ -287,7 +288,7 @@ def if_add(message):
                   except MySQLdb.Error as e:
                       db.rollback()
                       print(str(e))
-
+                  c.close()
                   db_close(db)
                   notifications_list = updatedictionary()
                   notifraid_list = updateraiddictionary()
@@ -315,6 +316,7 @@ def if_delete(message):
             c.execute("""DELETE FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
             deleted = c.rowcount
             db.commit()
+            c.close()
             db_close(db)
             if deleted > 0:
                 global notifications_list
@@ -358,6 +360,7 @@ def keywords_cleanup(message):
     c.execute(query)
     deleted = c.rowcount
     db.commit()
+    c.close()
     db_close(db)
     if deleted > 0:
         global notifications_list
@@ -488,7 +491,7 @@ def chanadd(message):
                 except MySQLdb.Error as e:
                     db.rollback()
                     print(str(e))
-
+                c.close()
                 db_close(db)
                 global channel_list
                 channel_list = chanmon()
@@ -509,6 +512,7 @@ def chandel(message):
         c.execute("""DELETE FROM notificationbot_channels WHERE channel_id=%s""", (chanid,))
         deleted = c.rowcount
         db.commit()
+        c.close()
         db_close(db)
         if deleted > 0:
             yield from client.send_message(message.channel, "Deleted channel with id `{}` from the database.".format(chanid))
@@ -597,6 +601,7 @@ def roleadd(message):
                     db.commit()
                 except:
                     db.rollback()
+                c.close()
                 db_close(db)
                 yield from client.send_message(message.channel, "Updated role `{}` to the database [admin={}, user={}]".format(rolefound.name, admin, user))
             # If the result doesn't exist, create a new entry
@@ -608,7 +613,7 @@ def roleadd(message):
                     db.commit()
                 except:
                     db.rollback()
-
+                c.close()
                 db_close(db)
                 global roles_list
                 roles_list = rolesdictionary()
@@ -632,6 +637,7 @@ def roledel(message):
         c.execute("""DELETE FROM notificationbot_roles WHERE roleid=%s""", (roleid,))
         deleted = c.rowcount
         db.commit()
+        c.close()
         db_close(db)
         if deleted > 0:
             global roles_list

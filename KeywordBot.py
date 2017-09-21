@@ -27,12 +27,14 @@ protected_roles = config.get('protected', 'protected.roles')
 bot_spawn = config.get('bot', 'bot.spawn')
 bot_raid = config.get('bot', 'bot.raid')
 bot_keywordlimit = int(config.get('bot', 'bot.keywordlimit'))
+bot_debug = int(config.get('bot', 'bot.debug'))
 
 # Create dictionaries placeholders, on_ready they will be filled up from db.
 notifications_list = {}
 notifraid_list = {}
 roles_list = {}
 channel_list = []
+iv_list = {'341730842303004673':'30'}
 
 # Start discord client
 client = discord.Client()
@@ -57,12 +59,12 @@ def on_ready():
     notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
     roles_list = rolesdictionary()
-    print('Connected! Ready to notify.')
-    print('Username: ' + client.user.name)
-    print('ID: ' + client.user.id)
-    print('--Server List--')
-    for server in client.servers:
-        discord_server = server.id
+    if bot_debug == 1:
+        print('Connected! Ready to notify.')
+        print('Username: ' + client.user.name)
+        print('ID: ' + client.user.id)
+        print('--Server List--')
+        server = client.get_server(discord_server)    
         print(server.id + ': ' + server.name)
         print('-- Channels --'.ljust(50) + 'monitored')
         for channel in server.channels:
@@ -122,9 +124,11 @@ def on_message(message):
             
     except:
         try:
-            print('Someone mentioned keyword: '+ message.content)
+            if bot_debug == 1:
+                print('Someone mentioned keyword: '+ message.content)
         except:
-            print('probably some special character in message.content')
+            if bot_debug == 1:
+                print('probably some special character in message.content')
     yield from if_add(message)
     yield from if_delete(message)
     access_admin = roleacc(message, 'admin')
@@ -165,6 +169,7 @@ def custom_notifications(message):
         return
     msglist = message.content.lower().split()
     embed = False
+
     if len(message.embeds) == 1:
         embed = True
         title = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['title']).lower().split()
@@ -183,8 +188,10 @@ def custom_notifications(message):
                         if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                             revoke = False
                             break
+                    aname = message.author.name
                     if user_id == message.author.id or revoke:
-                        print('Invalid user: same user or role with access revoked')
+                        if bot_debug == 1:
+                            print('Invalid user: same user or role with access revoked')
                         pass
                     elif embed:
                         try:
@@ -196,25 +203,100 @@ def custom_notifications(message):
                             emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
                             yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
                         except discord.DiscordException as de:
-                            print(str(de.message))
+                            if bot_debug == 1:
+                                print(str(de.message))
                             yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                        if bot_debug == 1:
+                            print('{} mentioned {} in #{}: {}'.format(aname, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                     else:
-                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
-                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(aname, keyword, message.channel.name, message.content))
+                        if bot_debug == 1:
+                            print('{} mentioned {} in #{}: {}'.format(aname, keyword, message.channel.name, message.content))
     elif message.author.name == bot_spawn:
-      for keyword in notifications_list.keys():
-          if keyword in msglist:
+        if bot_debug == 1:
+            print('looking for spawns')
+        # We will attempt to monitor IV's over a direct name.
+        global iv_list
+        iv_l = []
+        # Attempt to extract the IV if it's set
+        try:
+            tmp = message.content
+            if embed:
+                tmp = ' '.join([message.content, message.embeds[0]['title'].lower(), message.embeds[0]['description'].lower()])
+            regex = _regex_from_encoded_pattern('/.* iv\: ([^\?]*)/cp: .*/si')
+            iv_l = regex.findall(tmp)
+            if bot_debug == 1:                
+                print(iv_l)
+        except:
+            if bot_debug == 1:
+                print('Something went wrong parsing')
+        # Exclude list in case an IV notification was sent.
+        exclude = []
+        # If an IV was found, send a message.
+        if len(iv_l) == 1:
+            # Parse string to float to int (otherwise critical error)
+            iv = int(float(iv_l[0]))
+            # Cycle through the dictionary of IV monitors
+            for user_id in iv_list.keys():
+                if bot_debug == 1:
+                    print(user_id + ':' + iv_list[user_id])
+                # If the found IV is equal or higher than the one stored for this user, do things.
+                if int(iv_list[user_id]) <= iv:
+                    # Store it so the user isn't notified twice.
+                    usr = None
+                    for member in server.members:
+                        if member.id == user_id:
+                            usr = member
+                            break
+                    if usr != None:
+                        exclude.append(user_id)
+                        revoke = True
+                        print(str(usr.name))
+                        for role in usr.roles:
+                            if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                                revoke = False
+                                break
+                        if user_id == message.author.id or revoke:
+                            if bot_debug == 1:
+                                print('Invalid user: same user or role with access revoked')
+                            pass
+                        elif embed:
+                            print('in embed')
+                            try:
+                                emb_title = 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name)
+                                emb_desc = str(message.embeds[0]['description'])
+                                emb_url = str(message.embeds[0]['url'])
+                                emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                                emb.set_image(url=str(message.embeds[0]['image']['url']))
+                                emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                                print('trying embed')
+                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                            except discord.DiscordException as de:
+                                if bot_debug == 1:
+                                    print(str(de.message))
+                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                            if bot_debug == 1:
+                                print('IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                        else:
+                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                            if bot_debug == 1:
+                                print('{} mentioned {} in #{}: {}'.format(message.author.name, iv_list[user_id], message.channel.name, message.content))
+
+        for keyword in notifications_list.keys():
+            if keyword in msglist:
                 for user_id in notifications_list[keyword]: # if empty, does nothing
                     # Make sure we don't notify users whose access has been revoked
+                    if bot_debug == 1:
+                        print("user `{}`: `{}`".format(usr.id, keyword))
                     usr = server.get_member(user_id)
                     revoke = True
                     for role in usr.roles:
                         if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                             revoke = False
                             break
-                    if user_id == message.author.id or revoke:
-                        print('Invalid user: same user or role with access revoked')
+                    if user_id == message.author.id or revoke or user_id in exclude:
+                        if bot_debug == 1:
+                            print('Invalid user: same user or role with access revoked')
                         pass
                     elif embed:
                         try:
@@ -226,12 +308,15 @@ def custom_notifications(message):
                             emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
                             yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
                         except discord.DiscordException as de:
-                            print(str(de.message))
+                            if bot_debug == 1:
+                                print(str(de.message))
                             yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                        if bot_debug == 1:
+                            print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                     else:
                         yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
-                        print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                        if bot_debug == 1:
+                            print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
 
 # !notify {keyword}
@@ -257,7 +342,7 @@ def if_add(message):
           c.close()
           db_close(db)
           in_spawn = keyword in notifications_list.keys() and message.author.id in notifications_list[keyword]
-          in_raid = keyword in notifraid_list.keys() and message.author.id in notifications_list[keyword]
+          in_raid = keyword in notifraid_list.keys() and message.author.id in notifraid_list[keyword]
           if int(d[0]) == bot_keywordlimit and not in_spawn and not in_raid:
               yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
           else:
@@ -287,7 +372,8 @@ def if_add(message):
                       db.commit()
                   except MySQLdb.Error as e:
                       db.rollback()
-                      print(str(e))
+                      if bot_debug == 1:
+                          print(str(e))
                   c.close()
                   db_close(db)
                   notifications_list = updatedictionary()
@@ -490,7 +576,8 @@ def chanadd(message):
                     db.commit()
                 except MySQLdb.Error as e:
                     db.rollback()
-                    print(str(e))
+                    if bot_debug == 1:
+                        print(str(e))
                 c.close()
                 db_close(db)
                 global channel_list
@@ -687,10 +774,11 @@ def roleacc(message, group):
     try:
         getattr(usr, 'roles') 
     except AttributeError:
-        print("-- Debug info -- ")
-        print("type: " + message.type.name)
-        print("channel: " + message.channel.name)
-        print("bot: " + str(message.author.bot))
+        if bot_debug == 1:
+            print("-- Debug info -- ")
+            print("type: " + message.type.name)
+            print("channel: " + message.channel.name)
+            print("bot: " + str(message.author.bot))
         return stopUnauth
     else:
         global roles_list
@@ -723,6 +811,30 @@ def rolesdictionary():
 # --- End normal user role methods ---
 
 # --- Helper Methods ---
+# Helper for regex
+def _regex_from_encoded_pattern(s):
+    if s.startswith('/') and s.rfind('/') != 0:
+        # Parse it: /PATTERN/FLAGS
+        idx = s.rfind('/')
+        pattern, flags_str = s[1:idx], s[idx+1:]
+        flag_from_char = {
+            "i": re.IGNORECASE,
+            "l": re.LOCALE,
+            "s": re.DOTALL,
+            "m": re.MULTILINE,
+            "u": re.UNICODE,
+        }
+        flags = 0
+        for char in flags_str:
+            try:
+                flags |= flag_from_char[char]
+            except KeyError:
+                raise ValueError("unsupported regex flag: '%s' in '%s' "
+                                 "(must be one of '%s')"
+                                 % (char, s, ''.join(flag_from_char.keys())))
+        return re.compile(s[1:idx], flags)
+    else: # not an encoded regex
+        return re.compile(re.escape(s))
 
 # !botstats Helper function to print all statistics
 def botstats(message):

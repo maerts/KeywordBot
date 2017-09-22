@@ -244,6 +244,7 @@ def custom_notifications(message):
         except:
             if bot_debug == 1:
                 print('Something went wrong parsing')
+
         # Exclude list in case an IV notification was sent.
         exclude = []
         # If an IV was found, send a message.
@@ -256,14 +257,12 @@ def custom_notifications(message):
                     print(user_id + ':' + iv_list[user_id])
                 # If the found IV is equal or higher than the one stored for this user, do things.
                 if int(iv_list[user_id]) <= iv:
-                    # Store it so the user isn't notified twice.
                     usr = None
                     for member in server.members:
                         if member.id == user_id:
                             usr = member
                             break
                     if usr != None:
-                        exclude.append(user_id)
                         revoke = True
                         print(str(usr.name))
                         for role in usr.roles:
@@ -276,6 +275,8 @@ def custom_notifications(message):
                             pass
                         elif embed:
                             print('in embed')
+                            # Store it so the user isn't notified twice.
+                            exclude.append(user_id)
                             try:
                                 emb_title = 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name)
                                 emb_desc = str(message.embeds[0]['description'])
@@ -298,21 +299,29 @@ def custom_notifications(message):
 
         for keyword in notifications_list.keys():
             if keyword in msglist:
+                if bot_debug == 1:
+                    print('keyword in list :' + keyword)
                 for user_id in notifications_list[keyword]: # if empty, does nothing
+                    if str(user_id) in exclude:
+                        if bot_debug:
+                            print('User already notified with IV')
+                        pass
                     # Make sure we don't notify users whose access has been revoked
+                    usr = server.get_member(user_id)
                     if bot_debug == 1:
                         print("user `{}`: `{}`".format(usr.id, keyword))
-                    usr = server.get_member(user_id)
                     revoke = True
                     for role in usr.roles:
                         if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                             revoke = False
                             break
-                    if user_id == message.author.id or revoke or user_id in exclude:
+                    if user_id == message.author.id or revoke:
                         if bot_debug == 1:
                             print('Invalid user: same user or role with access revoked')
                         pass
                     elif embed:
+                        if bot_debug == 1:
+                            print('in embed')
                         try:
                             emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
                             emb_desc = str(message.embeds[0]['description'])

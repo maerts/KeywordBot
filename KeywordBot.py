@@ -55,10 +55,12 @@ def on_ready():
     global notifraid_list
     global channel_list
     global roles_list
+    global iv_list
     notifications_list = updatedictionary()
     notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
     roles_list = rolesdictionary()
+    iv_list = updateivdictionary()
     if bot_debug == 1:
         print('Connected! Ready to notify.')
         print('Username: ' + client.user.name)
@@ -79,6 +81,9 @@ helpmsg = "Hi I'm a notification bot!\n\
 `!notify {keyword} {raid} {spawn}` to add/update a PM notification about a certain pokemon raid and/or spawn. The value for raid/spawn is either 1 to track or 0 to not track. Example: `!notify tyranitar 1 1`\n\
 `!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
 `!notifications` for a list of your current notifications.\n\
+`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n\
+`!ivdel` to remove IV tracking.\n\
+`!ivinfo` to show if you have IV tracking enabled.\n\
 "
 
 # The !help message for admin users
@@ -93,6 +98,7 @@ Admin commands\n\
 `!roledel {id}` delete a role from the database of the notification bot.\n\
 `!keywordcleanup` this force cleans the notification database (old users and their notifications will be purged)\n\
 `!botstats` this returns userdata in the bot.\n\
+`!ivlist` this returns iv tracking list in the bot.\n\
 "
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
@@ -142,6 +148,14 @@ def on_message(message):
         yield from chanadd(message)
     elif '!chandel' == message.content[0:8] and access_admin:
         yield from chandel(message)
+    elif '!ivinfo' == message.content[0:7] and access_user:
+        yield from ivinfo(message)
+    elif '!ivadd' == message.content[0:6] and access_user:
+        yield from ivadd(message)
+    elif '!ivdel' == message.content[0:6] and access_user:
+        yield from ivdel(message)
+    elif '!ivlist' == message.content[0:7] and access_admin:
+        yield from ivlist(message)
     elif '!roleadd' == message.content[0:8] and access_admin:
         yield from roleadd(message)
     elif '!roledel' == message.content[0:8] and access_admin:
@@ -318,7 +332,6 @@ def custom_notifications(message):
                         if bot_debug == 1:
                             print('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
 
-
 # !notify {keyword}
 def if_add(message):
     global notifications_list
@@ -456,7 +469,6 @@ def keywords_cleanup(message):
         yield from client.send_message(message.channel, "Deleted `{}` keyword notifications from the tracking.".format(deleted))
     else:
         yield from client.send_message(message.channel, "Something went wrong cleaning up the list, make sure the database is up & running.")
-      
 
 # !notifications
 def mynotifications(message):
@@ -485,7 +497,7 @@ def mynotifications(message):
     " + str(spawn) + "```\n"
     
     yield from client.send_message(message.channel, notifications)
-
+    
 # Helper function to update the dictionary to loop through. Lowers the DB load.
 def updatedictionary():
     db = db_connect()
@@ -642,6 +654,121 @@ def chanmon():
     return channels
 
 # --- End channel methods ---
+
+
+# --- iv methods ---
+# Function to add iv to the database
+def ivadd(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        global iv_list
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        iv = int(msg[1])
+        # See if the id exists in the database
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT * FROM notificationbot_iv WHERE discord_id = '{}';".format(message.author.id))
+        row = c.fetchone()
+        c.close()
+        db_close(db)
+        
+        # If the result exists, update the value.
+        if row is not None:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute ("""UPDATE notificationbot_iv SET iv=%s WHERE discord_id=%s""", (iv, message.author.id))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            iv_list = updateivdictionary()
+            yield from client.send_message(message.channel, "Updated IV tracking to  `{}` for you.".format(iv))
+        # If the result doesn't exist, create a new entry
+        else:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute("""INSERT INTO notificationbot_iv (discord_id, iv) VALUES (%s, %s)""", (message.author.id, iv))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            iv_list = updateivdictionary()
+            yield from client.send_message(message.channel, "Added iv tracking `{}` for you.".format(iv))
+
+# Function to delete a role from the database
+def ivdel(message):
+    # instance of server for later use
+    server = client.get_server(discord_server)
+    db = db_connect()
+    c = db.cursor()
+    c.execute("""DELETE FROM notificationbot_iv WHERE discord_id=%s""", (message.author.id,))
+    deleted = c.rowcount
+    db.commit()
+    c.close()
+    db_close(db)
+    if deleted > 0:
+        global iv_list
+        iv_list = updateivdictionary()
+        yield from client.send_message(message.channel, "Deleted IV `{}` tracking for you.".format(roleid))
+    else:
+        yield from client.send_message(message.channel, "I am not tracking IV for you.")
+
+# Function to list all IV tracking
+def ivlist(message):
+    global iv_list
+    iv_list = updateivdictionary()
+    msg = '```'
+    msg += 'Name'.ljust(60) + '|IV\n'
+    msg += ''.ljust(62, '-') + '\n'
+
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    for discord_id in iv_list.keys():
+        member = server.get_member(discord_id)
+        msg += (member.name + ' (' + discord_id + ')').ljust(60) + '|' + iv_list[discord_id] + '\n'
+    msg += '```'
+    yield from client.send_message(message.author, msg[:2000])
+    if len(msg) >= 2000:
+        for i in range(1, round(len(msg)/2000) ):
+            c1 = msg[i*2000:(i+1)*2000]
+            yield from client.send_message(message.author, c1)
+
+# Function to list get your IV tacking
+def ivinfo(message):
+    global iv_list
+    iv_list = updateivdictionary()
+    msg = 'I am not tracking anything for you'
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    print(iv_list)
+    for discord_id in iv_list.keys():
+        if discord_id == message.author.id:
+            msg = 'I am currently tracking `IV {}` and above for you.'.format(iv_list[discord_id])
+            break
+    yield from client.send_message(message.author, msg)
+
+# Helper function to update the IV lookup dictionary to loop through. Lowers the DB load.
+def updateivdictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_iv;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        dict[str(d[0])] = str(d[1])
+    return dict
+            
+# --- End iv methods ---
 
 # --- User role methods ---
 # Function to add roles to the database

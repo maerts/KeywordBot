@@ -43,6 +43,30 @@ INSERT INTO `notificationbot_channels` VALUES (1,'334898180154195971','london-ra
 UNLOCK TABLES;
 
 --
+-- Table structure for table `notificationbot_iv`
+--
+
+DROP TABLE IF EXISTS `notificationbot_iv`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `notificationbot_iv` (
+  `discord_id` bigint(20) unsigned NOT NULL,
+  `iv` int(11) DEFAULT NULL,
+  PRIMARY KEY (`discord_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `notificationbot_iv`
+--
+
+LOCK TABLES `notificationbot_iv` WRITE;
+/*!40000 ALTER TABLE `notificationbot_iv` DISABLE KEYS */;
+INSERT INTO `notificationbot_iv` VALUES (341730842303004673,80);
+/*!40000 ALTER TABLE `notificationbot_iv` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `notificationbot_keywords`
 --
 
@@ -58,7 +82,7 @@ CREATE TABLE `notificationbot_keywords` (
   PRIMARY KEY (`id`),
   KEY `keyword` (`keyword`),
   KEY `discord_id` (`discord_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -67,7 +91,7 @@ CREATE TABLE `notificationbot_keywords` (
 
 LOCK TABLES `notificationbot_keywords` WRITE;
 /*!40000 ALTER TABLE `notificationbot_keywords` DISABLE KEYS */;
-INSERT INTO `notificationbot_keywords` VALUES (2,'tyranitar','341730842303004673',1,1),(6,'unown','341730842303004673',0,1),(9,'magikarp','308720902827409409',0,1),(10,'gyarados','308720902827409409',0,1),(11,'unown','205342915034087424',0,1),(12,'jackson','205342915034087424',0,1),(13,'blissey','205342915034087424',0,1),(14,'tyranitar','205342915034087424',0,1),(15,'dragonite','205342915034087424',0,1),(17,'dugtrio','308720902827409409',0,1),(18,'grimer','341730842303004673',1,0);
+INSERT INTO `notificationbot_keywords` VALUES (2,'tyranitar','341730842303004673',1,1),(6,'unown','341730842303004673',0,1),(10,'gyarados','308720902827409409',0,1),(11,'unown','205342915034087424',0,1),(12,'jackson','205342915034087424',0,1),(13,'blissey','205342915034087424',0,1),(14,'tyranitar','205342915034087424',0,1),(15,'dragonite','205342915034087424',0,1),(17,'dugtrio','308720902827409409',0,1),(20,'snorlax','341730842303004673',0,1),(24,'unown','203292966670958592',0,1),(25,'feraligatr','205342915034087424',1,1),(26,'chansey','341730842303004673',0,1),(27,'blissey','341730842303004673',0,1),(28,'togetic','291334980049567744',0,1),(32,'dragonite','291334980049567744',0,1),(33,'blissey','291334980049567744',0,1),(37,'unown','291334980049567744',0,1),(38,'dragonair','341730842303004673',0,1),(43,'gyarados','291334980049567744',0,1);
 /*!40000 ALTER TABLE `notificationbot_keywords` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -110,4 +134,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-09-18 13:49:13
+-- Dump completed on 2017-09-22 13:36:58

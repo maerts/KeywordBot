@@ -26,7 +26,8 @@ Initial configuration
  
 Running the bot
 ---------------
-- python3 Keywordbot.py will execute the bot
+- chmod +x run.sh
+- ./run.sh 
 
 
 

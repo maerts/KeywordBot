@@ -269,7 +269,7 @@ def custom_notifications(message):
                             # Store it so the user isn't notified twice.
                             exclude.append(user_id)
                             try:
-                                emb_title = 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name)
+                                emb_title = 'IV ({}) equal or higher than [{}] was detected for a [{}]'.format(iv, iv_list[user_id], message.embeds[0]['title'])
                                 emb_desc = str(message.embeds[0]['description'])
                                 emb_url = str(message.embeds[0]['url'])
                                 emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
@@ -306,7 +306,7 @@ def custom_notifications(message):
                     elif embed:
                         watchdog('in embed')
                         try:
-                            emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
+                            emb_title = '`{}` spawn found, triggered by keyword `{}`'.format(message.embeds[0]['title'], keyword)
                             emb_desc = str(message.embeds[0]['description'])
                             emb_url = str(message.embeds[0]['url'])
                             emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)

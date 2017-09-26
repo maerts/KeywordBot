@@ -28,6 +28,7 @@ protected_roles = config.get('protected', 'protected.roles')
 bot_spawn = config.get('bot', 'bot.spawn')
 bot_raid = config.get('bot', 'bot.raid')
 bot_keywordlimit = int(config.get('bot', 'bot.keywordlimit'))
+bot_ivenable = int(config.get('bot', 'bot.ivenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
 bot_version = config.get('bot', 'bot.version')
 
@@ -83,10 +84,13 @@ helpmsg = "Hi I'm a notification bot!\n\
 `!notify {keyword} {raid} {spawn}` to add/update a PM notification about a certain pokemon raid and/or spawn. The value for raid/spawn is either 1 to track or 0 to not track. Example: `!notify tyranitar 1 1`\n\
 `!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
 `!notifications` for a list of your current notifications.\n\
-`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n\
-`!ivdel` to remove IV tracking.\n\
-`!ivinfo` to show if you have IV tracking enabled.\n\
 "
+if bot_ivenable == 1:
+    helpmsg += "`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n\
+    `!ivdel` to remove IV tracking.\n\
+    `!ivinfo` to show if you have IV tracking enabled.\n\
+    "
+    
 
 # The !help message for admin users
 helpamsg = "\n\n\
@@ -100,8 +104,11 @@ Admin commands\n\
 `!roledel {id}` delete a role from the database of the notification bot.\n\
 `!keywordcleanup` this force cleans the notification database (old users and their notifications will be purged)\n\
 `!botstats` this returns userdata in the bot.\n\
-`!ivlist` this returns iv tracking list in the bot.\n\
 "
+if bot_ivenable == 1:
+    helpamsg += "`!ivlist` this returns iv tracking list in the bot.\n\
+    "
+
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
 \n\
@@ -139,6 +146,7 @@ def on_message(message):
     yield from if_delete(message)
     access_admin = roleacc(message, 'admin')
     access_user = roleacc(message, 'user')
+    iv_enabled = bot_ivenable == 1
     if '!update' == message.content[0:7] and access_admin:
         notifications_list = updatedictionary()
         notifraid_list = updateraiddictionary()
@@ -148,13 +156,13 @@ def on_message(message):
         yield from chanadd(message)
     elif '!chandel' == message.content[0:8] and access_admin:
         yield from chandel(message)
-    elif '!ivinfo' == message.content[0:7] and access_user:
+    elif '!ivinfo' == message.content[0:7] and iv_enabled and access_user:
         yield from ivinfo(message)
-    elif '!ivadd' == message.content[0:6] and access_user:
+    elif '!ivadd' == message.content[0:6] and iv_enabled and access_user:
         yield from ivadd(message)
-    elif '!ivdel' == message.content[0:6] and access_user:
+    elif '!ivdel' == message.content[0:6] and iv_enabled and access_user:
         yield from ivdel(message)
-    elif '!ivlist' == message.content[0:7] and access_admin:
+    elif '!ivlist' == message.content[0:7] and iv_enabled and access_admin:
         yield from ivlist(message)
     elif '!roleadd' == message.content[0:8] and access_admin:
         yield from roleadd(message)
@@ -225,65 +233,66 @@ def custom_notifications(message):
                         watchdog('{} mentioned {} in #{}: {}'.format(aname, keyword, message.channel.name, message.content))
     elif message.author.name == bot_spawn:
         watchdog('looking for spawns')
-        # We will attempt to monitor IV's over a direct name.
-        global iv_list
-        iv_l = []
-        # Attempt to extract the IV if it's set
-        try:
-            tmp = message.content
-            if embed:
-                tmp = ' '.join([message.content, message.embeds[0]['title'].lower(), message.embeds[0]['description'].lower()])
-            regex = _regex_from_encoded_pattern('/.* iv\: ([^\?]*)/cp: .*/si')
-            iv_l = regex.findall(tmp)
-            watchdog(str(iv_l))
-        except:
-            watchdog('Something went wrong parsing')
-
         # Exclude list in case an IV notification was sent.
         exclude = []
-        # If an IV was found, send a message.
-        if len(iv_l) == 1:
-            # Parse string to float to int (otherwise critical error)
-            iv = int(float(iv_l[0]))
-            # Cycle through the dictionary of IV monitors
-            for user_id in iv_list.keys():
-                watchdog(user_id + ':' + iv_list[user_id])
-                # If the found IV is equal or higher than the one stored for this user, do things.
-                if int(iv_list[user_id]) <= iv:
-                    usr = None
-                    for member in server.members:
-                        if member.id == user_id:
-                            usr = member
-                            break
-                    if usr != None:
-                        revoke = True
-                        for role in usr.roles:
-                            if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
-                                revoke = False
+        if bot_ivenable == 1:
+            # We will attempt to monitor IV's over a direct name.
+            global iv_list
+            iv_l = []
+            # Attempt to extract the IV if it's set
+            try:
+                tmp = message.content
+                if embed:
+                    tmp = ' '.join([message.content, message.embeds[0]['title'].lower(), message.embeds[0]['description'].lower()])
+                regex = _regex_from_encoded_pattern('/.* iv\: ([^\?]*)/cp: .*/si')
+                iv_l = regex.findall(tmp)
+                watchdog(str(iv_l))
+            except:
+                watchdog('Something went wrong parsing')
+
+            # If an IV was found, send a message.
+            if len(iv_l) == 1:
+                # Parse string to float to int (otherwise critical error)
+                iv = int(float(iv_l[0]))
+                # Cycle through the dictionary of IV monitors
+                for user_id in iv_list.keys():
+                    watchdog(user_id + ':' + iv_list[user_id])
+                    # If the found IV is equal or higher than the one stored for this user, do things.
+                    if int(iv_list[user_id]) <= iv:
+                        usr = None
+                        for member in server.members:
+                            if member.id == user_id:
+                                usr = member
                                 break
-                        if user_id == message.author.id or revoke:
-                            watchdog('Invalid user: same user or role with access revoked')
-                            pass
-                        elif embed:
-                            watchdog('in embed')
-                            # Store it so the user isn't notified twice.
-                            exclude.append(user_id)
-                            try:
-                                emb_title = 'IV ({}) equal or higher than [{}] was detected for a [{}]'.format(iv, iv_list[user_id], message.embeds[0]['title'])
-                                emb_desc = str(message.embeds[0]['description'])
-                                emb_url = str(message.embeds[0]['url'])
-                                emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
-                                emb.set_image(url=str(message.embeds[0]['image']['url']))
-                                emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
-                                watchdog('trying embed')
-                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
-                            except discord.DiscordException as de:
-                                watchdog(str(de.message))
+                        if usr != None:
+                            revoke = True
+                            for role in usr.roles:
+                                if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                                    revoke = False
+                                    break
+                            if user_id == message.author.id or revoke:
+                                watchdog('Invalid user: same user or role with access revoked')
+                                pass
+                            elif embed:
+                                watchdog('in embed')
+                                # Store it so the user isn't notified twice.
+                                exclude.append(user_id)
+                                try:
+                                    emb_title = 'IV ({}) equal or higher than [{}] was detected for a [{}]'.format(iv, iv_list[user_id], message.embeds[0]['title'])
+                                    emb_desc = str(message.embeds[0]['description'])
+                                    emb_url = str(message.embeds[0]['url'])
+                                    emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                                    emb.set_image(url=str(message.embeds[0]['image']['url']))
+                                    emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                                    watchdog('trying embed')
+                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                except discord.DiscordException as de:
+                                    watchdog(str(de.message))
+                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                                watchdog('IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                            else:
                                 yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
-                            watchdog('IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
-                        else:
-                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
-                            watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, iv_list[user_id], message.channel.name, message.content))
+                                watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, iv_list[user_id], message.channel.name, message.content))
 
         for keyword in notifications_list.keys():
             if keyword in msglist:

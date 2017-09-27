@@ -9,6 +9,7 @@ import MySQLdb
 import logging
 import requests
 import math
+from datetime import date
 
 ## Get configuration from ini file
 ## No validation on its presence, so make sure these are present
@@ -243,15 +244,15 @@ def custom_notifications(message):
                     # Make sure we don't notify users whose access has been revoked
                     usr = server.get_member(user_id)
                     revoke = True
-                    if coords and geolookup(user_id, lng, lat) == False:
-                        watchdog('The raid is out of the user {} his defined range'.format(usr.name))
-                        pass
                     for role in usr.roles:
                         if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                             revoke = False
                             break
                     aname = message.author.name
-                    if user_id == message.author.id or revoke:
+                    if coords and geolookup(user_id, lng, lat) == False: # if outside the users defined range
+                        watchdog('The raid is out of the user {} his defined range'.format(usr.display_name))
+                        pass
+                    elif user_id == message.author.id or revoke: # if no access and slipped through
                         watchdog('Invalid user: same user or role with access revoked')
                         pass
                     elif embed:
@@ -295,12 +296,12 @@ def custom_notifications(message):
                 iv = int(float(iv_l[0]))
                 # Cycle through the dictionary of IV monitors
                 for user_id in iv_list.keys():
-                    if coords and geolookup(user_id, lng, lat) == False:
-                        watchdog('The spawn is out of the user {} his defined range'.format(usr.name))
-                        pass
                     watchdog(user_id + ':' + iv_list[user_id])
                     # If the found IV is equal or higher than the one stored for this user, do things.
-                    if int(iv_list[user_id]) <= iv:
+                    if coords and geolookup(user_id, lng, lat) == False:
+                        watchdog('The spawn is out of the user {} his defined range'.format(user_id))
+                        pass
+                    elif int(iv_list[user_id]) <= iv:
                         usr = None
                         for member in server.members:
                             if member.id == user_id:
@@ -340,12 +341,6 @@ def custom_notifications(message):
             if keyword in msglist:
                 watchdog('keyword in list :' + keyword)
                 for user_id in notifications_list[keyword]: # if empty, does nothing
-                    if str(user_id) in exclude:
-                        watchdog('User already notified with IV')
-                        pass
-                    if coords and geolookup(user_id, lng, lat) == False:
-                        watchdog('The spawn is out of the user {} his defined range'.format(usr.name))
-                        pass
                     # Make sure we don't notify users whose access has been revoked
                     usr = server.get_member(user_id)
                     watchdog("user `{}`: `{}`".format(usr.id, keyword))
@@ -354,7 +349,13 @@ def custom_notifications(message):
                         if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                             revoke = False
                             break
-                    if user_id == message.author.id or revoke:
+                    if str(user_id) in exclude: # excluded from IV match
+                        watchdog('User already notified with IV')
+                        pass
+                    elif coords and geolookup(user_id, lng, lat) == False: # limited in radius
+                        watchdog('The spawn is out of the user {} his defined range'.format(usr.name))
+                        pass
+                    elif user_id == message.author.id or revoke: # no access and slipped through
                         watchdog('Invalid user: same user or role with access revoked')
                         pass
                     elif embed:
@@ -988,6 +989,7 @@ def geolookup(discord_id, lng, lat):
             u_lat = float(coords['lat'])
             u_dist = coords['km']
             distance = 6371 * 2 * math.asin(math.sqrt(math.pow(math.sin((u_lat - math.fabs(lat)) * math.pi/180 / 2),2) + math.cos(u_lat * math.pi/180 ) * math.cos(math.fabs(lat) *  math.pi/180) * math.pow(math.sin((u_lng - lng) *  math.pi/180 / 2), 2) ))
+            watchdog(str(float(distance)) + " - " + str(float(u_dist)))
             return float(distance) <= float(u_dist)
         else:
             watchdog('User does not have range limitation, so let him through')
@@ -1190,7 +1192,8 @@ def botstats(message):
 # Helper function to do logging
 def watchdog(message):
     if bot_debug == 1:
-        print(message)
+        date = str(datetime.datetime.now().strftime("%Y-%m-%d - %I:%M:%S"))
+        print(date + " # " + message)
 
 # --- db functions ---
 # Helper function to execute a query and return the results in a list object

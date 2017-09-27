@@ -7,6 +7,8 @@ import configparser
 import traceback
 import MySQLdb
 import logging
+import requests
+import math
 
 ## Get configuration from ini file
 ## No validation on its presence, so make sure these are present
@@ -31,13 +33,15 @@ bot_keywordlimit = int(config.get('bot', 'bot.keywordlimit'))
 bot_ivenable = int(config.get('bot', 'bot.ivenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
 bot_version = config.get('bot', 'bot.version')
+bot_gapi = config.get('bot', 'bot.gapi')
 
 # Create dictionaries placeholders, on_ready they will be filled up from db.
 notifications_list = {}
 notifraid_list = {}
 roles_list = {}
 channel_list = []
-iv_list = {'341730842303004673':'30'}
+iv_list = {}
+coord_list = {}
 
 # Start discord client
 client = discord.Client()
@@ -59,11 +63,13 @@ def on_ready():
     global channel_list
     global roles_list
     global iv_list
+    global coord_list
     notifications_list = updatedictionary()
     notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
     roles_list = rolesdictionary()
     iv_list = updateivdictionary()
+    coord_list = coorddictionary()
     watchdog('Connected! Ready to notify.')
     watchdog('Username: ' + client.user.name)
     watchdog('ID: ' + client.user.id)
@@ -85,12 +91,12 @@ helpmsg = "Hi I'm a notification bot!\n\
 `!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
 `!notifications` for a list of your current notifications.\n\
 "
+# IV user help
 if bot_ivenable == 1:
-    helpmsg += "`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n\
-    `!ivdel` to remove IV tracking.\n\
-    `!ivinfo` to show if you have IV tracking enabled.\n\
-    "
-    
+    helpmsg += "`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n`!ivdel` to remove IV tracking.\n`!ivinfo` to show if you have IV tracking enabled.\n"
+# GEO user help
+helpmsg += "`!geo {number} {address}` to limit all tracking to a certain radius in km. This allows for only nearby alerts to appear e.g. `!geo 1 300 Dufferin Ave, London, ON`.\n`!geodel` to remove the radius restrictions from tracking.\n`!geonfo` to shows the currently set radius limitations you have setup.\n"
+ 
 
 # The !help message for admin users
 helpamsg = "\n\n\
@@ -105,9 +111,9 @@ Admin commands\n\
 `!keywordcleanup` this force cleans the notification database (old users and their notifications will be purged)\n\
 `!botstats` this returns userdata in the bot.\n\
 "
+# IV admin help
 if bot_ivenable == 1:
-    helpamsg += "`!ivlist` this returns iv tracking list in the bot.\n\
-    "
+    helpamsg += "`!ivlist` this returns iv tracking list in the bot.\n"
 
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
@@ -176,6 +182,12 @@ def on_message(message):
         yield from botstats(message)
     elif '!notifications' == message.content[0:14] and access_user:
         yield from mynotifications(message)
+    elif '!geo ' == message.content[0:5] and access_user:
+        yield from geolocation(message)
+    elif '!geodel' == message.content[0:7] and access_user:
+        yield from geodel(message)
+    elif '!geonfo' == message.content[0:7] and access_user:
+        yield from geonfo(message)
 
 ##################################################
 
@@ -191,12 +203,36 @@ def custom_notifications(message):
         return
     msglist = message.content.lower().split()
     embed = False
-
+    
+    # Initialize coordinate placeholders
+    coords = False
+    lng = 0.0
+    lat = 0.0
     if len(message.embeds) == 1:
         embed = True
         title = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['title']).lower().split()
         desc = re.sub('[^a-zA-Z0-9 \.]', ' ', message.embeds[0]['description']).lower().split()
         msglist = msglist + title + desc
+
+        # coordinates lookup
+        coord_l = []
+        # Attempt to extract the coordinates
+        try:
+            tmp = message.content
+            if embed:
+                tmp = ' '.join([message.content, message.embeds[0]['title'].lower(), message.embeds[0]['description'].lower()])
+            regex = _regex_from_encoded_pattern('/.*maps\.google\.com\/maps\?q\=([^\?]*).*/si')
+            coord_l = regex.findall(tmp)
+            watchdog(str(coord_l))
+        except:
+            watchdog('Something went wrong parsing')
+        if len(coord_l) == 1:
+            # Parse string to float to int (otherwise critical error)
+            coord_split = coord_l[0].split(',')
+            lat = float(coord_split[0])
+            lng = float(coord_split[1])
+            coords = True
+    
     ######
     # Loop through raids
     if message.author.name == bot_raid:
@@ -207,6 +243,9 @@ def custom_notifications(message):
                     # Make sure we don't notify users whose access has been revoked
                     usr = server.get_member(user_id)
                     revoke = True
+                    if coords and geolookup(user_id, lng, lat) == False:
+                        watchdog('The raid is out of the user {} his defined range'.format(usr.name))
+                        pass
                     for role in usr.roles:
                         if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                             revoke = False
@@ -256,6 +295,9 @@ def custom_notifications(message):
                 iv = int(float(iv_l[0]))
                 # Cycle through the dictionary of IV monitors
                 for user_id in iv_list.keys():
+                    if coords and geolookup(user_id, lng, lat) == False:
+                        watchdog('The spawn is out of the user {} his defined range'.format(usr.name))
+                        pass
                     watchdog(user_id + ':' + iv_list[user_id])
                     # If the found IV is equal or higher than the one stored for this user, do things.
                     if int(iv_list[user_id]) <= iv:
@@ -300,6 +342,9 @@ def custom_notifications(message):
                 for user_id in notifications_list[keyword]: # if empty, does nothing
                     if str(user_id) in exclude:
                         watchdog('User already notified with IV')
+                        pass
+                    if coords and geolookup(user_id, lng, lat) == False:
+                        watchdog('The spawn is out of the user {} his defined range'.format(usr.name))
                         pass
                     # Make sure we don't notify users whose access has been revoked
                     usr = server.get_member(user_id)
@@ -390,7 +435,6 @@ def if_add(message):
                   notifraid_list = updateraiddictionary()
                   yield from client.send_message(message.channel, 'Added notification `{} [raid: {}|spawn: {}]`. To delete, use `!notifydel [keyword]`'.format(keyword, raid, spawn))
 
-            
 # !notifydel {keyword}
 def if_delete(message):
     # opens file list, finds line with the keyword, deletes message.author.id from it.
@@ -539,7 +583,6 @@ def updateraiddictionary():
         dict[d[0]] = k_ids
     return dict
 # --- End notification functions ---
-
 
 
 # --- channel methods ---
@@ -763,7 +806,7 @@ def updateivdictionary():
     for i, d in enumerate(data):
         dict[str(d[0])] = str(d[1])
     return dict
-            
+
 # --- End iv methods ---
 
 # --- User role methods ---
@@ -932,6 +975,154 @@ def rolesdictionary():
     return roles
 
 # --- End normal user role methods ---
+
+
+# --- geolocation functions
+# Helper function to locate check whether a spawn/raid falls within a radius
+def geolookup(discord_id, lng, lat):
+    global coord_list
+    try:
+        if discord_id in coord_list.keys():
+            coords = coord_list[discord_id]
+            u_lng = float(coords['lng'])
+            u_lat = float(coords['lat'])
+            u_dist = coords['km']
+            distance = 6371 * 2 * math.asin(math.sqrt(math.pow(math.sin((u_lat - math.fabs(lat)) * math.pi/180 / 2),2) + math.cos(u_lat * math.pi/180 ) * math.cos(math.fabs(lat) *  math.pi/180) * math.pow(math.sin((u_lng - lng) *  math.pi/180 / 2), 2) ))
+            return float(distance) <= float(u_dist)
+        else:
+            watchdog('User does not have range limitation, so let him through')
+            return True
+    except:
+        watchdog('When the parsing has gone to shit, passthrough')
+        return True
+
+# Helper function to add geolocation limitation to the lookups
+def geolocation(message):
+    msg = message.content.lower().split()
+    if len(msg) == 1:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        address = ""
+        limit = int(float(msg[1]))
+        for x in range(2, len(msg)):
+            address += " "  + msg[x]
+        address = address.strip()
+        watchdog(address)
+        # Get lon lat from google api.
+        try:
+            r = requests.get('https://maps.googleapis.com/maps/api/geocode/json?address={}&key={}'.format(address, bot_gapi))
+            fetch = r.json()
+            lng = fetch['results'][0]['geometry']['location']['lng']
+            lat = fetch['results'][0]['geometry']['location']['lat']
+            watchdog(str(lng) + " " + str(lat))
+        except:
+            watchdog('Could not fetch coordinates from google API.')
+            yield from client.send_message(message.channel, "Could not fetch coordinates from google API, make sure you didn't make any mistakes in address.")
+            return
+        # get the global to update.
+        global coord_list
+
+        # See if the discord_id exists in the database
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT * FROM notificationbot_coord WHERE discord_id = {};".format(message.author.id))
+        row = c.fetchone()
+        c.close()
+        db_close(db)
+        
+        # If the result exists, update the value.
+        if row is not None:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute ("""UPDATE notificationbot_coord SET lng=%s, lat=%s, km=%s WHERE discord_id=%s""", (lng, lat, limit, message.author.id))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            coord_list = coorddictionary()
+            yield from client.send_message(message.channel, "Updated range limits to `{}km` for  `{}` for you.".format(limit, address))
+        # If the result doesn't exist, create a new entry
+        else:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute("""INSERT INTO notificationbot_coord (discord_id, lng, lat, km) VALUES (%s, %s, %s, %s)""", (message.author.id, lng, lat, limit))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            coord_list = coorddictionary()
+            yield from client.send_message(message.channel, "Added range limits `{}km` for `{}`.".format(limit,address))
+
+# Helper function to get the stored radius & address information for a user
+def geonfo(message):
+    msg = message.content.lower().split()
+    # get the global to update.
+    global coord_list
+    discord_id = message.author.id
+    # If the result exists, update the value.
+    if discord_id in coord_list.keys():
+        coords = coord_list[discord_id]
+        u_lng = float(coords['lng'])
+        u_lat = float(coords['lat'])
+        u_dist = coords['km']
+        address = ""
+
+        # Get human readable address
+        try:
+            r = requests.get('https://maps.googleapis.com/maps/api/geocode/json?latlng={},{}&key={}'.format(u_lat, u_lng, bot_gapi))
+            fetch = r.json()
+            address = fetch['results'][0]['formatted_address']
+        except:
+            watchdog('Could not fetch address from google API.')
+            yield from client.send_message(message.channel, "Could not fetch address from google API, try again later.")
+            return
+        yield from client.send_message(message.channel, "Currently I am tracking keywords set in `!notifications` in a `{}km` radius from `{}`".format(u_dist, address))
+    else:
+        yield from client.send_message(message.channel, "You do not have any radius limitations set.")
+            
+# Function to delete a coordinate from the database
+def geodel(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+
+        db = db_connect()
+        c = db.cursor()
+        c.execute("""DELETE FROM notificationbot_coord WHERE discord_id=%s""", (message.author.id,))
+        deleted = c.rowcount
+        db.commit()
+        c.close()
+        db_close(db)
+        if deleted > 0:
+            global coord_list
+            coord_list = coorddictionary()
+            yield from client.send_message(message.channel, "Deleted range limitation from the database.")
+        else:
+            yield from client.send_message(message.channel, "There is no range limitation set for you in the database")
+
+# Helper function to update the coord lookup dictionary to loop through. Lowers the DB load.
+def coorddictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_coord;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        coords = {}
+        coords['lng'] = d[1]
+        coords['lat'] = d[2]
+        coords['km'] = d[3]
+        dict[str(d[0])] = coords
+    return dict
+
+# --- End geolocation functions
 
 # --- Helper Methods ---
 # Helper for regex

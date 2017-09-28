@@ -14,7 +14,7 @@ Improvements for pokemon go specific
 
 
 Setup requirements
-------------------
+=====
 - python 3.4
 - PIP3
 
@@ -26,21 +26,21 @@ After setting those up execute the following commands
 
 
 Initial configuration
--------------
+=====
 - First make a clean checkout of the repository
 - import the database under `/sql/` into your local database
 - Configure the bot through `config.ini`
  
 Running the bot on its own
---------------------------
+=====
 - chmod +x run.sh
 - ./run.sh 
 
 
 Setting up the script as a service
-----------------------------------
+=====
 In Mac OXS using Launchd
-------
+-----
 - create `com.discordapp.notificationbot` file in `/Library/LaunchDaemons` with contents:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -68,7 +68,7 @@ In Mac OXS using Launchd
 - to stop the script from running, execute the command: `launchctl unload com.discordapp.notificationbot`
 
 In linux using upstart
-------
+-----
 - sudo nano /etc/init/discordnotbotd.conf
 - add the following:
 ```bash

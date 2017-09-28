@@ -41,7 +41,7 @@ Setting up the script as a service
 ----------------------------------
 In Mac OXS using Launchd
 ------
-- create com.discordapp.notificationbot file in /Library/LaunchDaemons with contents:
+- create `com.discordapp.notificationbot` file in `/Library/LaunchDaemons` with contents:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -51,7 +51,7 @@ In Mac OXS using Launchd
          <string>com.discordapp.notificationbot</string>
          <key>ProgramArguments</key>
          <array>
-              <string>/Users/maarten/Documents/git/keywordbot/daemon.sh</string>
+              <string>/path-to-repo/keywordbot/daemon.sh</string>
          </array>
          <key>RunAtLoad</key>
          <true/>
@@ -63,13 +63,13 @@ In Mac OXS using Launchd
 </plist>
 ```
 - tailor daemon.sh to reflect the correct path to your python3 installation
-- make sure daemon.sh has execute permissions: chmod +x daemon.sh
-- load up the script running the command launchctl load com.discordapp.notificationbot
+- make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
+- load up the script running the command: `launchctl load com.discordapp.notificationbot`
+- to stop the script from running, execute the command: `launchctl unload com.discordapp.notificationbot`
 
 In linux using upstart
 ------
-!!!INCOMPLETE, WILL COMPLETE SOON
-- sudo nano /etc/init/DiscordNotificationBotDaemon.conf
+- sudo nano /etc/init/discordnotbotd.conf
 - add the following:
 ```bash
 description "Discord - Notification bot"
@@ -77,13 +77,11 @@ author "moonstorm"
 start on runlevel [2345]    
 
 pre-start script
-  echo "[`date`] Discord Notification Bot Daemon Starting" >> /var/log/discordnotificationbot.log
+  echo "[`date`] Discord Notification Bot Daemon Starting" >> /tmp/discordnotbotd.log
 end script
 
-exec /bin/sh run.sh > /dev/null & 
+exec /bin/sh /path-to-repo/keywordbot/daemon.sh > /dev/null & 
 ```
-
-
-TODO
------
-- add instructions on how to run it as a daemon under linux
+- test your configuration `init-checkconf /etc/init/discordnotbotd.conf`
+- make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
+- start your daemon with `sudo service start discordnotbotd`

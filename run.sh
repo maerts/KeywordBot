@@ -1,7 +1,9 @@
 #!/bin/bash
 
 keywordbot(){
-    python3 KeywordBot.py
+    cd "$(dirname "$0")"
+    SCRIPT_DIR=$(pwd)
+    /usr/bin/python3 KeywordBot.py
 }
 
 until keywordbot; do

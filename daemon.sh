@@ -3,7 +3,7 @@
 keywordbot(){
     cd "$(dirname "$0")"
     SCRIPT_DIR=$(pwd)
-    /usr/local/bin/python3 KeywordBot.py
+    /usr/bin/python3 KeywordBot.py
 }
 
 until keywordbot; do

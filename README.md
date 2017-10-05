@@ -41,28 +41,8 @@ Setting up the script as a service
 =====
 In Mac OXS using Launchd
 -----
-- create `com.discordapp.notificationbot` file in `/Library/LaunchDaemons` with contents:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-    <dict>
-         <key>Label</key>
-         <string>com.discordapp.notificationbot</string>
-         <key>ProgramArguments</key>
-         <array>
-              <string>/path-to-repo/keywordbot/daemon.sh</string>
-         </array>
-         <key>RunAtLoad</key>
-         <true/>
-         <key>KeepAlive</key>
-         <true/>
-         <key>Crashed</key>
-         <true/>
-    </dict>
-</plist>
-```
-- tailor daemon.sh to reflect the correct path to your python3 installation
+- create a symbolic link to the file `sudo ln -s <absolute-path-to-bot>/daemon/launchd/com.discordapp.notificationbot /Library/LaunchDaemons/com.discordapp.notificationbot`
+- you have to slightly change the file to correspond to your system
 - make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
 - load up the script running the command: `launchctl load com.discordapp.notificationbot`
 - to stop the script from running, execute the command: `launchctl unload com.discordapp.notificationbot`
@@ -85,3 +65,9 @@ exec /bin/sh /path-to-repo/keywordbot/daemon.sh > /dev/null &
 - test your configuration `init-checkconf /etc/init/discordnotbotd.conf`
 - make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
 - start your daemon with `sudo service start discordnotbotd`
+
+In Linux using systemd
+-----
+- create a symbolic link to the file `sudo ln -s <absolute-path-to-bot>/daemon/systemd/notificationbot.service /etc/systemd/system/notificationbot.service`
+- make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
+- you can now control the service using systemd

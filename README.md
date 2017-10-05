@@ -47,24 +47,6 @@ In Mac OXS using Launchd
 - load up the script running the command: `launchctl load com.discordapp.notificationbot`
 - to stop the script from running, execute the command: `launchctl unload com.discordapp.notificationbot`
 
-In linux using upstart
------
-- sudo nano /etc/init/discordnotbotd.conf
-- add the following:
-```bash
-description "Discord - Notification bot"
-author "moonstorm"
-start on runlevel [2345]    
-
-pre-start script
-  echo "[`date`] Discord Notification Bot Daemon Starting" >> /tmp/discordnotbotd.log
-end script
-
-exec /bin/sh /path-to-repo/keywordbot/daemon.sh > /dev/null & 
-```
-- test your configuration `init-checkconf /etc/init/discordnotbotd.conf`
-- make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
-- start your daemon with `sudo service start discordnotbotd`
 
 In Linux using systemd
 -----

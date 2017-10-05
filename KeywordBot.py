@@ -1088,24 +1088,19 @@ def geonfo(message):
             
 # Function to delete a coordinate from the database
 def geodel(message):
-    msg = message.content.lower().split()
-    if len(msg) != 2:
-        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    db = db_connect()
+    c = db.cursor()
+    c.execute("""DELETE FROM notificationbot_coord WHERE discord_id=%s""", (message.author.id,))
+    deleted = c.rowcount
+    db.commit()
+    c.close()
+    db_close(db)
+    if deleted > 0:
+        global coord_list
+        coord_list = coorddictionary()
+        yield from client.send_message(message.channel, "Deleted range limitation from the database.")
     else:
-
-        db = db_connect()
-        c = db.cursor()
-        c.execute("""DELETE FROM notificationbot_coord WHERE discord_id=%s""", (message.author.id,))
-        deleted = c.rowcount
-        db.commit()
-        c.close()
-        db_close(db)
-        if deleted > 0:
-            global coord_list
-            coord_list = coorddictionary()
-            yield from client.send_message(message.channel, "Deleted range limitation from the database.")
-        else:
-            yield from client.send_message(message.channel, "There is no range limitation set for you in the database")
+        yield from client.send_message(message.channel, "There is no range limitation set for you in the database")
 
 # Helper function to update the coord lookup dictionary to loop through. Lowers the DB load.
 def coorddictionary():

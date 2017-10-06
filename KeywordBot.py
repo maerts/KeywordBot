@@ -388,9 +388,10 @@ def if_add(message):
         if len(msg) != 4:
             yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
         else:
-          keyword = msg[1]
-          raid = msg[2]
-          spawn = msg[3]
+
+          keyword = stripchars(msg[1])
+          raid = stripchars(msg[2])
+          spawn = stripchars(msg[3])
           
           db = db_connect()
           c = db.cursor()
@@ -447,11 +448,9 @@ def if_delete(message):
         if len(msg) != 2:
             yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
         else:
-            keyword = msg[1]
+            keyword = stripchars(msg[1])
             # instance of server for later use
             server = client.get_server(discord_server)
-            # We expect these values.
-            chanid = msg[1]
             db = db_connect()
             c = db.cursor()
             c.execute("""DELETE FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
@@ -596,7 +595,7 @@ def chanadd(message):
         # instance of server for later use
         server = client.get_server(discord_server)
         # We expect these values.
-        chanid = msg[1]
+        chanid = stripchars(msg[1])
         
         # verify existence of rol on the server
         fakechan = True
@@ -645,7 +644,7 @@ def chandel(message):
         # instance of server for later use
         server = client.get_server(discord_server)
         # We expect these values.
-        chanid = msg[1]
+        chanid = stripchars(msg[1])
         db = db_connect()
         c = db.cursor()
         c.execute("""DELETE FROM notificationbot_channels WHERE channel_id=%s""", (chanid,))
@@ -707,7 +706,7 @@ def ivadd(message):
         # instance of server for later use
         server = client.get_server(discord_server)
         # We expect these values.
-        iv = int(msg[1])
+        iv = int(stripchars(msg[1]))
         # See if the id exists in the database
         db = db_connect()
         c = db.cursor()
@@ -820,9 +819,9 @@ def roleadd(message):
         # instance of server for later use
         server = client.get_server(discord_server)
         # We expect these values.
-        roleid = msg[1]
-        user = int(msg[2])
-        admin = int(msg[3])
+        roleid = stripchars(msg[1])
+        user = int(stripchars(msg[2]))
+        admin = int(stripchars(msg[3]))
         if roleid in protected_roles:
             user = 1
             admin = 1
@@ -882,7 +881,7 @@ def roledel(message):
         # instance of server for later use
         server = client.get_server(discord_server)
         # We expect these values.
-        roleid = msg[1]
+        roleid = stripchars(msg[1])
         if roleid in protected_roles:
             yield from client.send_message(message.channel, "The role with id `{}` is protected and can't be deleted.".format(roleid))
             return
@@ -1005,7 +1004,7 @@ def geolocation(message):
         yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
     else:
         address = ""
-        limit = int(float(msg[1]))
+        limit = int(float(stripchars(msg[1])))
         for x in range(2, len(msg)):
             address += " "  + msg[x]
         address = address.strip()
@@ -1061,7 +1060,6 @@ def geolocation(message):
 
 # Helper function to get the stored radius & address information for a user
 def geonfo(message):
-    msg = message.content.lower().split()
     # get the global to update.
     global coord_list
     discord_id = message.author.id
@@ -1220,6 +1218,10 @@ def watchdog(message):
     if bot_debug == 1:
         date = str(datetime.datetime.now().strftime("%Y-%m-%d - %I:%M:%S"))
         print(date + " # " + message)
+
+#Helper function to strip unwanted characters
+def stripchars(string):
+    return re.sub('[{}]', '', string)
 
 # --- db functions ---
 # Helper function to execute a query and return the results in a list object

@@ -1196,6 +1196,12 @@ def botstats(message):
     otp += '```'
     
     # total stats message at the top
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT keyword, count(1) cnt FROM notificationbot_keywords GROUP BY keyword order by cnt DESC LIMIT 0, 1;")
+    row = c.fetchone()
+    c.close()
+    db_close(db)
     total_members = len(dict.keys())
     avg_keywords = total_keywords / total_members
     ost = '```'
@@ -1204,6 +1210,7 @@ def botstats(message):
     ost += 'Average keywords per users: ' + str(avg_keywords) + '\n'
     ost += 'Most keywords: ' + max_member.name + '(' + str(max_keywords) + ')\n'
     ost += 'Least keywords: ' + low_member.name + '(' + str(low_keywords) + ')\n'
+    ost += 'Most common keyword: ' + row[0] + '\n'
     ost += '```'
     yield from client.send_message(message.author, ost)
 

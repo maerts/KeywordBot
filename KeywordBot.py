@@ -132,7 +132,7 @@ def on_message(message):
     if message.author == client.user:
         return
     if message.channel.is_private:
-        if not roleacc(message, 'user'):
+        if not roleacc(message, 'user') and not roleacc(message, 'admin'):
             yield from client.send_message(message.channel, noaccessmsg)
         elif '!help' == message.content[0:5]:
             returnmsg = helpmsg
@@ -1163,6 +1163,12 @@ def botstats(message):
     c.close()
     db_close(db)
     dict = {}
+    total_members = 0
+    total_keywords = 0
+    max_keywords = 0
+    low_keywords = 99
+    max_member = None
+    low_member = None
     for i, d in enumerate(data):
         if d[2] not in dict:
             empty = []
@@ -1175,9 +1181,34 @@ def botstats(message):
         
     for key in dict.keys():
         usr = server.get_member(key)
+        
+        # build stats for total
+        u_total = len(dict[key])
+        total_keywords += u_total
+        if u_total > max_keywords:
+            max_keywords = u_total
+            max_member = usr
+        if u_total < low_keywords:
+            low_keywords = u_total
+            low_member = usr
+            
+            
         otp += (usr.name + ' (' + key + ')').ljust(50) + str(dict[key]) + '\n'
 
     otp += '```'
+    
+    # total stats message at the top
+    total_members = len(dict.keys())
+    avg_keywords = total_keywords / total_members
+    ost = '```'
+    ost += 'Total users: ' + str(total_members) + '\n'
+    ost += 'Total keywords: ' + str(total_keywords) + '\n'
+    ost += 'Average keywords per users: ' + str(avg_keywords) + '\n'
+    ost += 'Most keywords: ' + max_member.name + '(' + str(max_keywords) + ')\n'
+    ost += 'Least keywords: ' + low_member.name + '(' + str(low_keywords) + ')\n'
+    ost += '```'
+    yield from client.send_message(message.author, ost)
+
     yield from client.send_message(message.author, otp[:2000])
     if len(otp) >= 2000:
         for i in range(1, round(len(otp)/2000) ):

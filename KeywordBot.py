@@ -119,7 +119,7 @@ if bot_ivenable == 1:
 # The message shown for unprivileged users
 noaccessmsg = "Hi I'm a notification bot!\n\
 \n\
-Unfortunately you do not have the proper permissions to use me, read #announcements for more information on how to donate to get access."
+Unfortunately you do not have the proper permissions to use me, read #announcements for more information on how to donate to get access. If you believe this is in error, try again in a few minutes. Sometimes due to slow response times from Discord I can't find your permissions."
 # --- End help messages ---
 
 @client.async_event

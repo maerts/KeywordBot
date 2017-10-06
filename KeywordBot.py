@@ -257,7 +257,7 @@ def custom_notifications(message):
                         pass
                     elif embed:
                         try:
-                            emb_title = '`[{}] was mentioned` `in #{}`'.format(keyword, message.channel.name)
+                            emb_title = '`{}` raid has opened up'.format(keyword, message.channel.name)
                             emb_desc = str(message.embeds[0]['description'])
                             emb_url = str(message.embeds[0]['url'])
                             emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
@@ -266,8 +266,8 @@ def custom_notifications(message):
                             yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
                         except discord.DiscordException as de:
                             watchdog(str(de.message))
-                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                        watchdog('{} mentioned {} in #{}: {}'.format(aname, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
+                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{}` raid has opened up. {}'.format(keyword, message.embeds[0]['url']))
+                        watchdog('`{}` raid has opened up. {}'.format(keyword, message.embeds[0]['url']))
                     else:
                         yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(aname, keyword, message.channel.name, message.content))
                         watchdog('{} mentioned {} in #{}: {}'.format(aname, keyword, message.channel.name, message.content))
@@ -1230,7 +1230,9 @@ def botstats(message):
 def watchdog(message):
     if bot_debug == 1:
         date = str(datetime.datetime.now().strftime("%Y-%m-%d - %I:%M:%S"))
-        print(date + " # " + message)
+        f = open(os.path.join('log', str(datetime.datetime.now().strftime("%Y-%m-%d") + '-debug.log')), 'a')
+        f.write(date + " # " + message + '\n')
+        f.close()
 
 # Helper function to strip unwanted characters
 def stripchars(string):

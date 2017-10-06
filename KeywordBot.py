@@ -385,57 +385,63 @@ def if_add(message):
         if not roleacc(message, 'user'):
             return
         msg = message.content.lower().split()
-        if len(msg) != 4:
+        if len(msg) < 4:
             yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
         else:
 
           keyword = stripchars(msg[1])
+          levenshtein = pokemon_autocorrect(keyword)
           raid = stripchars(msg[2])
           spawn = stripchars(msg[3])
-          
-          db = db_connect()
-          c = db.cursor()
-          c.execute("SELECT count(1) FROM notificationbot_keywords WHERE discord_id = '{}';".format(message.author.id))
-          d = c.fetchone()
-          c.close()
-          db_close(db)
-          in_spawn = keyword in notifications_list.keys() and message.author.id in notifications_list[keyword]
-          in_raid = keyword in notifraid_list.keys() and message.author.id in notifraid_list[keyword]
-          if int(d[0]) == bot_keywordlimit and not in_spawn and not in_raid:
-              yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
+          force = False
+          if len(msg) == 5 and msg[4] == 'force':
+              force = True
+          if levenshtein != keyword and levenshtein != "" and not force:
+              yield from client.send_message(message.channel, "Did you mean any of the following: `{}`? Correct if you made a mistake with one of the suggestions. If you want to add your original keyword, append `force` so it becomes `!notify {} {} {} force`".format(levenshtein, keyword, raid, spawn))
           else:
               db = db_connect()
               c = db.cursor()
-              c.execute("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = LOWER('{}') AND discord_id = '{}';".format(keyword, message.author.id))
-              row = c.fetchone()
+              c.execute("SELECT count(1) FROM notificationbot_keywords WHERE discord_id = '{}';".format(message.author.id))
+              d = c.fetchone()
               c.close()
               db_close(db)
-              # when keyword in file:
-              if row is not None:
-                  db = db_connect()
-                  c = db.cursor()
-                  try:
-                      c.execute ("""UPDATE notificationbot_keywords SET raid=%s, spawn=%s WHERE discord_id=%s AND keyword=%s""", (raid, spawn, message.author.id, keyword.lower()))
-                      db.commit()
-                  except:
-                      db.rollback()
-                  c.close()
-                  db_close(db)
-                  yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
+              in_spawn = keyword in notifications_list.keys() and message.author.id in notifications_list[keyword]
+              in_raid = keyword in notifraid_list.keys() and message.author.id in notifraid_list[keyword]
+              if int(d[0]) == bot_keywordlimit and not in_spawn and not in_raid:
+                  yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
               else:
                   db = db_connect()
                   c = db.cursor()
-                  try:
-                      c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn) VALUES (%s, %s, %s, %s)""", (keyword.lower(), message.author.id, int(raid), int(spawn)))
-                      db.commit()
-                  except MySQLdb.Error as e:
-                      db.rollback()
-                      watchdog(str(e))
+                  c.execute("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = LOWER('{}') AND discord_id = '{}';".format(keyword, message.author.id))
+                  row = c.fetchone()
                   c.close()
                   db_close(db)
-                  notifications_list = updatedictionary()
-                  notifraid_list = updateraiddictionary()
-                  yield from client.send_message(message.channel, 'Added notification `{} [raid: {}|spawn: {}]`. To delete, use `!notifydel [keyword]`'.format(keyword, raid, spawn))
+                  # when keyword in file:
+                  if row is not None:
+                      db = db_connect()
+                      c = db.cursor()
+                      try:
+                          c.execute ("""UPDATE notificationbot_keywords SET raid=%s, spawn=%s WHERE discord_id=%s AND keyword=%s""", (raid, spawn, message.author.id, keyword.lower()))
+                          db.commit()
+                      except:
+                          db.rollback()
+                      c.close()
+                      db_close(db)
+                      yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
+                  else:
+                      db = db_connect()
+                      c = db.cursor()
+                      try:
+                          c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn) VALUES (%s, %s, %s, %s)""", (keyword.lower(), message.author.id, int(raid), int(spawn)))
+                          db.commit()
+                      except MySQLdb.Error as e:
+                          db.rollback()
+                          watchdog(str(e))
+                      c.close()
+                      db_close(db)
+                      notifications_list = updatedictionary()
+                      notifraid_list = updateraiddictionary()
+                      yield from client.send_message(message.channel, 'Added notification `{} [raid: {}|spawn: {}]`. To delete, use `!notifydel [keyword]`'.format(keyword, raid, spawn))
 
 # !notifydel {keyword}
 def if_delete(message):
@@ -1226,10 +1232,48 @@ def watchdog(message):
         date = str(datetime.datetime.now().strftime("%Y-%m-%d - %I:%M:%S"))
         print(date + " # " + message)
 
-#Helper function to strip unwanted characters
+# Helper function to strip unwanted characters
 def stripchars(string):
     return re.sub('[{}]', '', string)
 
+# Helper function to do autocorrect on pokemon names.
+def pokemon_autocorrect(string):
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_levenshtein ORDER BY id;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    sugg = []
+    for i, d in enumerate(data):
+        if levenshtein(string, d[1].lower()) == 0:
+            return string
+        elif levenshtein(string, d[1].lower()) < 4:
+            sugg.append(d[1].lower())
+    return ', '.join(sugg)
+
+
+# Helper function for levenshtein calculations.
+def levenshtein(s1, s2):
+    if len(s1) < len(s2):
+        return levenshtein(s2, s1)
+
+    # len(s1) >= len(s2)
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1 # j+1 instead of j since previous_row and current_row are one character longer
+            deletions = current_row[j] + 1       # than s2
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    
+    return previous_row[-1]
+    
 # --- db functions ---
 # Helper function to execute a query and return the results in a list object
 def db_connect():

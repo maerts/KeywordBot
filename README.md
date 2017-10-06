@@ -53,3 +53,8 @@ In Linux using systemd
 - create a symbolic link to the file `sudo ln -s <absolute-path-to-bot>/daemon/systemd/notificationbot.service /etc/systemd/system/notificationbot.service`
 - make sure daemon.sh has execute permissions: `chmod +x daemon.sh`
 - you can now control the service using systemd
+
+
+Update
+=====
+2017-10-06 - If you update from 0.95 to 0.96, import update-0.95-to-0.96.sql into your database. Otherwise use dump.sql as a base.

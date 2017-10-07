@@ -1214,8 +1214,6 @@ def botstats(message):
     global channel_list
     server = client.get_server(discord_server)
 
-    otp = '```'
-    otp += '\n\n-- user  --'.ljust(50) + 'keywords\n'
     # Get all channels from server
     db = db_connect()
     c = db.cursor()
@@ -1224,6 +1222,8 @@ def botstats(message):
     c.close()
     db_close(db)
     dict = {}
+    raid = {}
+    spawn = {}
     total_members = 0
     total_keywords = 0
     max_keywords = 0
@@ -1231,6 +1231,7 @@ def botstats(message):
     max_member = None
     low_member = None
     for i, d in enumerate(data):
+        # global dict, can be used for simple stats. Will be used to calculate global statistics
         if d[2] not in dict:
             empty = []
             empty.append(d[1])
@@ -1239,7 +1240,27 @@ def botstats(message):
             empty = dict[d[2]]
             empty.append(d[1])
             dict[d[2]] = empty
-        
+        # raid dict
+        if d[3] == 1:
+            if d[2] not in raid:
+                empty = []
+                empty.append(d[1])
+                raid[d[2]] = empty
+            else:
+                empty = raid[d[2]]
+                empty.append(d[1])
+                raid[d[2]] = empty
+        # spawn dict
+        if d[4] == 1:
+            if d[2] not in spawn:
+                empty = []
+                empty.append(d[1])
+                spawn[d[2]] = empty
+            else:
+                empty = spawn[d[2]]
+                empty.append(d[1])
+                spawn[d[2]] = empty
+    # Calculate stats for the bot.
     for key in dict.keys():
         usr = server.get_member(key)
         
@@ -1252,11 +1273,6 @@ def botstats(message):
         if u_total < low_keywords:
             low_keywords = u_total
             low_member = usr
-            
-            
-        otp += (usr.name + ' (' + key + ')').ljust(50) + str(dict[key]) + '\n'
-
-    otp += '```'
     
     # total stats message at the top
     db = db_connect()
@@ -1277,17 +1293,42 @@ def botstats(message):
     ost += '```'
     yield from client.send_message(message.author, ost)
 
-    yield from client.send_message(message.author, otp[:2000])
-    if len(otp) >= 2000:
-        for i in range(1, round(len(otp)/2000) ):
-            c1 = otp[i*2000:(i+1)*2000]
-            yield from client.send_message(message.author, c1)
+    # Print raid statistics for users
+    otp = '```'
+    otp += 'Raid keyword statistics\n'
+    otp += '\n\nuser'.ljust(50) + 'keywords\n'
+    for key in raid.keys():
+        usr = server.get_member(key)
+        tmp = (usr.name + ' (' + key + ')').ljust(50) + str(raid[key]) + '\n'
+        if (len(tmp) + len(otp)) >  1997:
+            otp += '```'
+            yield from client.send_message(message.author, otp)
+            otp = '```'
+        otp += tmp
+
+    otp += '```'
+    yield from client.send_message(message.author, otp)
+    # Print spawn statistics for users
+    otp = '```'
+    otp += 'Spawn keyword statistics\n'
+    otp += '\n\nuser'.ljust(50) + 'keywords\n'
+    for key in spawn.keys():
+        usr = server.get_member(key)
+        tmp = (usr.name + ' (' + key + ')').ljust(50) + str(spawn[key]) + '\n'
+        if (len(tmp) + len(otp)) >  1997:
+            otp += '```'
+            yield from client.send_message(message.author, otp)
+            otp = '```'
+        otp += tmp
+
+    otp += '```'
+    yield from client.send_message(message.author, otp)
 
 # Helper function to do logging
 def watchdog(message):
     if bot_debug == 1:
         date = str(datetime.datetime.now().strftime("%Y-%m-%d - %I:%M:%S"))
-        f = open(os.path.join('log', str(datetime.datetime.now().strftime("%Y-%m-%d") + 'debug.log')), 'a')
+        f = open(os.path.join('log', str(datetime.datetime.now().strftime("%Y-%m-%d") + '-debug.log')), 'a')
         f.write(date + " # " + message + '\n')
         f.close()
 

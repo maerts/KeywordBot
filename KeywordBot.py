@@ -9,6 +9,7 @@ import MySQLdb
 import logging
 import requests
 import math
+import gc
 from datetime import date
 
 ## Get configuration from ini file
@@ -46,16 +47,6 @@ coord_list = {}
 
 # Start discord client
 client = discord.Client()
-
-
-## Uncomment below if you want announcements on who joins the server.
-@client.async_event
-def on_member_join(member):
-    server = member.server
-    fmt = 'Welcome {0.mention} to {1.name}!'
-    # yield from client.send_message(server, fmt.format(member, server))
-    # yield from client.send_message(discord.utils.find(lambda u: u.id == member.id, client.get_all_members()), helpmsg)
-    # print('Sent intro message to '+ member.name)
 
 @client.async_event
 def on_ready():
@@ -1389,9 +1380,9 @@ def db_close(connection):
 
 loop = asyncio.get_event_loop()
 try:
-    loop.run_until_complete(client.login(discord_user, discord_pass))
-    loop.run_until_complete(client.connect())
+    loop.run_until_complete(client.start(discord_user, discord_pass))
+    # loop.run_until_complete(client.connect())
 except Exception:
-    loop.run_until_complete(client.close())
+    loop.run_until_complete(client.logout())
 finally:
     loop.close()

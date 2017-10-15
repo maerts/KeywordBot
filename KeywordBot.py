@@ -118,6 +118,12 @@ def on_message(message):
     global notifications_list
     global notifraid_list
     global channel_list
+    if message.channel.id in channel_list and not message.channel.is_private and '!notification' == message.content[0:13]:
+        if roleacc(message, 'user') or roleacc(message, 'admin'):
+            server = client.get_server(discord_server)
+            usr = server.get_member(message.author.id)
+            yield from client.send_message(usr, "Hi, I'm a notificationbot, to see which commands are available to you, send a message `!help` to me.")
+        return
     if message.channel.id not in channel_list and not message.channel.is_private:
         return
     if message.author == client.user:

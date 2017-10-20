@@ -118,7 +118,7 @@ def on_message(message):
     global notifications_list
     global notifraid_list
     global channel_list
-    if message.channel.id in channel_list and not message.channel.is_private and '!notification' == message.content[0:13]:
+    if message.channel.id == '365874059302666250' and not message.channel.is_private and '!notification' == message.content[0:13]:
         if roleacc(message, 'user') or roleacc(message, 'admin'):
             server = client.get_server(discord_server)
             usr = server.get_member(message.author.id)

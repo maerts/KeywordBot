@@ -227,23 +227,23 @@ def custom_notifications(message):
         try:
             # Add pokemon name if found
             if match_desc[0][1] != "":
-                keywordlist.append(match_desc[0][1])
+                keywordlist.append(match_desc[0][1].strip())
             # Add moves if found
             if match_desc[0][6] != '':
                 m_moves_split = match_desc[0][6].split("/")
-                keywordlist.append(m_moves_split[0])
-                keywordlist.append(m_moves_split[1])
+                keywordlist.append(m_moves_split[0].strip())
+                keywordlist.append(m_moves_split[1].strip())
             # Add region if found
             if match_desc[0][8] != '':    
-                keywordlist.append(match_desc[0][8])
+                keywordlist.append(match_desc[0][8].strip())
             # Add gym if found
             if len(match_desc[0]) > 11 and match_desc[0][11] != '':
-                keywordlist.append(match_desc[0][11])
+                keywordlist.append(match_desc[0][11].strip())
             # Add moves from raid if found
             if len(match_desc[0]) > 15 and match_desc[0][15] != '':
                 m_moves_split = match_desc[0][15].split("/")
-                keywordlist.append(m_moves_split[0])
-                keywordlist.append(m_moves_split[1])
+                keywordlist.append(m_moves_split[0].strip())
+                keywordlist.append(m_moves_split[1].strip())
         except:
             watchdog('Error parsing the description from the bot.')
 

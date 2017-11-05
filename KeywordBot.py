@@ -238,7 +238,7 @@ def custom_notifications(message):
                 keywordlist.append(match_desc[0][8].strip())
             # Add gym if found
             if len(match_desc[0]) > 11 and match_desc[0][11] != '':
-                keywordlist.append(match_desc[0][11].strip())
+                keywordlist.append(' '.join(match_desc[0][11].strip().split()))
             # Add moves from raid if found
             if len(match_desc[0]) > 15 and match_desc[0][15] != '':
                 m_moves_split = match_desc[0][15].split("/")
@@ -249,6 +249,7 @@ def custom_notifications(message):
 
         key_string = " ".join(keywordlist)
         keywordlist = keywordlist + key_string.split()
+        watchdog(str(keywordlist))
         
         if len(keywordlist) > 0:
             msglist = keywordlist

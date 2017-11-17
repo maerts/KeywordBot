@@ -805,6 +805,7 @@ def ivadd(message):
 
 # Function to delete a role from the database
 def ivdel(message):
+    old_iv  = updateivdictionary()
     # instance of server for later use
     server = client.get_server(discord_server)
     db = db_connect()
@@ -814,10 +815,11 @@ def ivdel(message):
     db.commit()
     c.close()
     db_close(db)
+    watchdog(str(deleted))
     if deleted > 0:
         global iv_list
         iv_list = updateivdictionary()
-        yield from client.send_message(message.channel, "Deleted IV `{}` tracking for you.".format(roleid))
+        yield from client.send_message(message.channel, "Deleted IV `{}` tracking for you.".format(old_iv[message.author.id]))
     else:
         yield from client.send_message(message.channel, "I am not tracking IV for you.")
 

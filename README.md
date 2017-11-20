@@ -23,6 +23,7 @@ After setting those up execute the following commands
 - pip3 install requests
 - pip3 install mysqlclient
 - pip3 install configparser
+- pip3 install default-libmysqlclient-dev
 
 
 Initial configuration

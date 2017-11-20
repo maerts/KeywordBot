@@ -217,6 +217,8 @@ def custom_notifications(message):
             # Add pokemon name if found
             if match_title[0][2] != "" and match_title[0][2] != 'incoming':
                 keywordlist.append(match_title[0][2])
+            elif match_title[0][2] == 'incoming':
+                keywordlist.append(match_title[0][0].strip())
         except:
             watchdog('Error parsing the title from the bot.')
 

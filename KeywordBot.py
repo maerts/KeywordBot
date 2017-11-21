@@ -11,6 +11,7 @@ import requests
 import math
 import gc
 from datetime import date
+from time import sleep
 
 ## Get configuration from ini file
 ## No validation on its presence, so make sure these are present
@@ -30,7 +31,7 @@ sql_db = config.get('sql', 'sql.db')
 protected_roles = config.get('protected', 'protected.roles')
 # - parse bot info
 bot_spawn = config.get('bot', 'bot.spawn')
-bot_raid = config.get('bot', 'bot.raid')
+bot_raid = config.get('bot', 'bot.raid').split(',')
 bot_keywordlimit = int(config.get('bot', 'bot.keywordlimit'))
 bot_ivenable = int(config.get('bot', 'bot.ivenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
@@ -82,6 +83,7 @@ helpmsg = "Hi I'm a notification bot!\n\
 `!notify {keyword} {raid} {spawn}` to add/update a PM notification about a certain pokemon raid and/or spawn. The value for raid/spawn is either 1 to track or 0 to not track. Example: `!notify tyranitar 1 1`\n\
 `!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
 `!notifications` for a list of your current notifications.\n\
+`!keywords help` not sure which strings to add? Send this command to the bot and you'll get an overview.\n\
 "
 # IV user help
 if bot_ivenable == 1:
@@ -143,7 +145,10 @@ def on_message(message):
             
     except:
         try:
-            watchdog('Someone mentioned keyword: '+ message.content)
+            ret = message.content
+            if len(message.embeds) == 1:
+                ret = message.embeds[0]['title']
+            watchdog('Nobody has trigger for: '+ ret)
         except:
             watchdog('probably some special character in message.content')            
     yield from if_add(message)
@@ -186,9 +191,30 @@ def on_message(message):
         yield from geodel(message)
     elif '!geonfo' == message.content[0:7] and access_user:
         yield from geonfo(message)
+    elif '!keywords help' == message.content[0:14] and access_user:
+        yield from keywords_help(message)
 
 ##################################################
 
+# --- Helper function ---
+def keywords_help(message):
+    cwd = os.getcwd()
+    watchdog(cwd)
+    yield from client.send_message(message.author, "If you have any problems setting up keywords, I look for the following triggers.")
+    yield from client.send_message(message.author, "For raid eggs we cap the following strings.")
+    with open(cwd + '/raidegg.png', 'rb') as f:
+        result = yield from client.send_file(message.channel, f)
+        watchdog(str(result))
+    yield from client.send_message(message.author, "For hatched raids we cap the following strings.")
+    with open(cwd + '/raidmon.png', 'rb') as f:
+        result = yield from client.send_file(message.channel, f)
+        watchdog(str(result))
+    yield from client.send_message(message.author, "For wild pokemons we cap the following strings.")
+    with open(cwd + '/spawn.png', 'rb') as f:
+        result = yield from client.send_file(message.channel, f)
+        watchdog(str(result))
+
+# -- End Helper function ---
 
 # --- notification functions ---
 # General catch all for all speech to pick up on keywords.
@@ -217,7 +243,7 @@ def custom_notifications(message):
             # Add pokemon name if found
             if match_title[0][2] != "" and match_title[0][2] != 'incoming':
                 keywordlist.append(match_title[0][2])
-            elif match_title[0][2] == 'incoming':
+            elif match_title[0][2] != "" and  match_title[0][2] == 'incoming':
                 keywordlist.append(match_title[0][0].strip())
         except:
             watchdog('Error parsing the title from the bot.')
@@ -282,7 +308,7 @@ def custom_notifications(message):
     
     ######
     # Loop through raids
-    if message.author.name == bot_raid:
+    if message.author.name in bot_raid:
         watchdog('looking for raids')
         for keyword in notifraid_list.keys():
             if keyword in msglist:
@@ -447,11 +473,9 @@ def if_add(message):
             watchdog('Keyword: ' + keyword)
             watchdog('Raid: ' + raid)
             watchdog('Spawn: ' + spawn)
-            force = False
-            if len(msg) == 5 and msg[4] == 'force':
-                force = True
-            if levenshtein != keyword and levenshtein != "" and not force:
-                yield from client.send_message(message.channel, "Did you mean any of the following: `{}`? Correct if you made a mistake with one of the suggestions. If you want to add your original keyword, append `force` so it becomes `!notify {} {} {} force`".format(levenshtein, keyword, raid, spawn))
+
+            if levenshtein != keyword and levenshtein != "":
+                yield from client.send_message(message.channel, "Did you mean any of the following: `{}`? Correct if you made a mistake with one of the suggestions.".format(levenshtein, keyword, raid, spawn))
             else:
                 db = db_connect()
                 c = db.cursor()
@@ -459,19 +483,26 @@ def if_add(message):
                 d = c.fetchone()
                 c.close()
                 db_close(db)
+                watchdog('Checking existing lists for entries')
                 in_spawn = keyword in notifications_list.keys() and message.author.id in notifications_list[keyword]
                 in_raid = keyword in notifraid_list.keys() and message.author.id in notifraid_list[keyword]
+                watchdog('Verify existence and respond accordinly')
+                watchdog('In spawn: ' + str(in_spawn))
+                watchdog('In raid: ' + str(in_raid))
                 if int(d[0]) == bot_keywordlimit and not in_spawn and not in_raid:
                     yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
                 else:
+                    watchdog('Find keyword in list')
                     db = db_connect()
                     c = db.cursor()
-                    c.execute("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = LOWER('{}') AND discord_id = '{}';".format(keyword, message.author.id))
+                    c.execute(("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = '{}' AND discord_id='{}'".format(keyword.lower().replace("'", "\\'"), message.author.id)))
                     row = c.fetchone()
                     c.close()
                     db_close(db)
+                    watchdog('Find keyword in existing list')
                     # when keyword in file:
                     if row is not None:
+                        watchdog('Updating keyword')
                         db = db_connect()
                         c = db.cursor()
                         try:
@@ -483,6 +514,7 @@ def if_add(message):
                         db_close(db)
                         yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
                     else:
+                        watchdog('Inserting keyword')
                         db = db_connect()
                         c = db.cursor()
                         try:
@@ -614,7 +646,7 @@ def updatedictionary():
     for i, d in enumerate(data):
         db = db_connect()
         c = db.cursor()
-        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE spawn = 1 AND keyword = '{}';".format(d[0]))
+        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE spawn = 1 AND keyword = '{}';".format(d[0].replace("'", "\\'")))
         ids = c.fetchall()
         c.close()
         db_close(db)
@@ -636,7 +668,7 @@ def updateraiddictionary():
     for i, d in enumerate(data):
         db = db_connect()
         c = db.cursor()
-        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE raid = 1 AND keyword = '{}';".format(d[0]))
+        c.execute("SELECT discord_id FROM notificationbot_keywords WHERE raid = 1 AND keyword = '{}';".format(d[0].replace("'", "\\'")))
         ids = c.fetchall()
         c.close()
         db_close(db)

@@ -37,6 +37,10 @@ bot_ivenable = int(config.get('bot', 'bot.ivenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
 bot_version = config.get('bot', 'bot.version')
 bot_gapi = config.get('bot', 'bot.gapi')
+# - regex from config
+regex_title=config.get('regex', 'regex.title')
+regex_desc=config.get('regex', 'regex.desc')
+
 
 # Create dictionaries placeholders, on_ready they will be filled up from db.
 notifications_list = {}
@@ -73,8 +77,11 @@ def on_ready():
     watchdog(server.id + ': ' + server.name)
     watchdog('-- Channels --'.ljust(50) + 'monitored')
     for channel in server.channels:
-      c_mon = '[*]' if channel.id in channel_list else '[ ]'
-      watchdog((channel.id + ': ' + channel.name).ljust(50) + c_mon)
+        c_mon = '[*]' if channel.id in channel_list else '[ ]'
+        watchdog((channel.id + ': ' + channel.name).ljust(50) + c_mon)
+    watchdog('Regexes from config')
+    watchdog(regex_title)
+    watchdog(regex_desc)
     
 
 # --- Help messages ---
@@ -233,54 +240,99 @@ def custom_notifications(message):
     coords = False
     lng = 0.0
     lat = 0.0
+    reg_iv = 0.0
+    reg_cp = 0
+    reg_level = 0
     pokemonname = ""
     if len(message.embeds) == 1:
         embed = True
         keywordlist = []
         # Regex the title for more concise keywords.
         watchdog(message.embeds[0]['title'].lower())
-        regex = _regex_from_encoded_pattern('/(level: \d (vs )?)?([^!]*)(!)?/si')
-        match_title = regex.findall(message.embeds[0]['title'].lower())
+        regex = _regex_from_encoded_pattern(regex_title)
+        match_title = regex.match(message.embeds[0]['title'].lower())
         try:
             # Add pokemon name if found
-            if match_title[0][2] != "" and match_title[0][2] != 'incoming':
-                keywordlist.append(match_title[0][2])
-                pokemonname = match_title[0][2]
-            elif match_title[0][2] != "" and  match_title[0][2] == 'incoming':
-                keywordlist.append(match_title[0][0].strip())
+            if match_title.group('pokemon') is not None and match_title.group('pokemon') != "":
+                keywordlist.append(match_title.group('pokemon'))
+                pokemonname = match_title.group('pokemon')
         except:
-            watchdog('Error parsing the title from the bot.')
+            watchdog('Error getting title capture group pokemon.')
+
+        try:
+            if match_title.group('level') is not None and match_title.group('level') != "":
+                keywordlist.append(match_title.group('level').strip())
+        except:
+            watchdog('Error getting title capture group level.')
 
         # Regex the description for more concise keywords.
-        regex = _regex_from_encoded_pattern('/(([^\n]*)\n)?(form: (.*) iv: (.*)/cp:(.*)\nmoves: (.*)\n)?(.* \((.*)\)\s?\n)(gym: (\*\*)?([^\*]*)(\*\*)?\n)?((moves: \*\*(.*)\*\*\n)?)?(.*will hatch .*\.)?(available (un)?til(l)?)? .*/si')
-        match_desc = regex.findall(message.embeds[0]['description'].lower())
+        regex = _regex_from_encoded_pattern(regex_desc)
+        match_desc = regex.match(message.embeds[0]['description'].lower())
         # put the revelant matches to a variable. We don't want to cycle too many values. This slows the script down.
         try:
-            # Add pokemon name if found
-            if match_desc[0][1] != "":
-                keywordlist.append(match_desc[0][1].strip())
-
+            # Add the unown form
+            if match_desc.group('form') is not None and match_desc.group('form') != "":
+                keywordlist.append(match_desc.group('form'))
+        except:
+            watchdog('Error parsing the form capture group from the description.')
+        
+        try:
+            # Add the region
+            if match_desc.group('region') is not None and match_desc.group('region') != "":
+                keywordlist.append(match_desc.group('region'))
+        except:
+            watchdog('Error parsing the region capture group from the description.')
+            
+        try:
+            # Add the gym
+            if match_desc.group('gym') is not None and match_desc.group('gym') != "":
+                keywordlist.append(match_desc.group('gym'))
+        except:
+            watchdog('Error parsing the gym capture group from the description.')
+            
+        try:
             # Add moves if found
-            if match_desc[0][6] != '':
-                m_moves_split = match_desc[0][6].split("/")
-                keywordlist.append(m_moves_split[0].strip())
-                keywordlist.append(m_moves_split[1].strip())
-            # Add region if found
-            if match_desc[0][8] != '':    
-                keywordlist.append(match_desc[0][8].strip())
-            # Add gym if found
-            if len(match_desc[0]) > 11 and match_desc[0][11] != '':
-                keywordlist.append(' '.join(match_desc[0][11].strip().split()))
-            # Add moves from raid if found
-            if len(match_desc[0]) > 15 and match_desc[0][15] != '':
-                m_moves_split = match_desc[0][15].split("/")
+            if match_desc.group('moves') is not None and match_desc.group('moves') != "":
+                m_moves_split = match_desc.group('moves').split("/")
                 keywordlist.append(m_moves_split[0].strip())
                 keywordlist.append(m_moves_split[1].strip())
         except:
-            watchdog('Error parsing the description from the bot.')
+            watchdog('Error parsing the moves capture group from the description.')
+            
+        try:
+            # Add moves from raid if found
+            if match_desc.group('gymmoves') is not None and match_desc.group('gymmoves') != "":
+                m_moves_split = match_desc.group('gymmoves').split("/")
+                keywordlist.append(m_moves_split[0].strip())
+                keywordlist.append(m_moves_split[1].strip())
+        except:
+            watchdog('Error parsing the gym moves capture group from the description.')
+            
+        try:
+            # -- Store for future improvements
+            # Get the IV
+            if match_desc.group('iv') is not None and match_desc.group('iv') != "?":
+                reg_iv = match_desc.group('iv')
+        except:
+            watchdog('Error parsing the iv capture group from the description.')
+            
+        try:
+            # Get the CP
+            if match_desc.group('cp') is not None and match_desc.group('cp') != "?":
+                reg_cp = match_desc.group('cp')
+        except:
+            watchdog('Error parsing the cp capture group from the description.')
+            
+        try:    
+            # Get the Level
+            if match_desc.group('level') is not None and match_desc.group('level') != "?":
+                reg_level = match_desc.group('level')
+        except:
+            watchdog('Error parsing the level capture group from the description.')
 
         key_string = " ".join(keywordlist)
         keywordlist = keywordlist + key_string.split()
+        watchdog('[iv: ' + str(reg_iv) + ',cp: ' + str(reg_cp) + ',lvl: ' + str(reg_level) + ']')
         watchdog(str(keywordlist))
         
         if len(keywordlist) > 0:

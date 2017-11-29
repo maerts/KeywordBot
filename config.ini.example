@@ -1,0 +1,23 @@
+[discord]
+discord.user=yourbot@domain.tld
+discord.pass=password
+discord.serverid=1234567890
+[sql]
+sql.user=sqluser
+sql.pass=sqlpass
+sql.host=127.0.0.1
+sql.port=3306
+sql.db=notificationbot
+[protected]
+protected.roles=
+[bot]
+bot.raid=Pokaroo-Raid,Pokaroo-Egg
+bot.spawn=PokarooLndOnt
+bot.keywordlimit=25
+bot.ivenable=1
+bot.debug=1
+bot.version=0.98
+bot.gapi=yourgoogleapikey
+[regex]
+regex.title=/(?P<level>level: \d )?(vs )?(?P<pokemon>[^!\(\)]*)(!)?(\([\d.]+\%\))?/si
+regex.desc=/((?P<form>form: [^\n]* )?iv: (?P<iv>[\d\.\?]+)/cp: (?P<cp>[\d\?]*)/lvl:(?P<level>[\d\?]*)\n)?(gender:(?P<gender>.+)/H:([\d\.]*)/W:([\d\.]*)/S:([^\n]*)\n)?(moves: (?P<moves>[^\n]*)\n)?(.* \((?P<region>.*)\)\s?\n)(gym: (\*\*)?(?P<gym>[^\*]*)(\*\*)?\n)?((moves: \*\*(?P<gymmoves>.*)\*\*\n)?)?(.*will hatch .*\.)?(available (un)?til(l)?)? .*/si

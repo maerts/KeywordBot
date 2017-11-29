@@ -1,15 +1,14 @@
 # Changelog
-====
 28/11/2017
 ----
 * moved regex to the configuration to make them configurable for different setups
-** Capture groups for the title: pokemon, level <- not mandatory, but preferably present.
-** Capture groups for the description: cp, form, level, gender, region, iv, gymmoves, moves, gym <- not mandatory, but preferably present.
+ * Capture groups for the title: pokemon, level <- not mandatory, but preferably present.
+ * Capture groups for the description: cp, form, level, gender, region, iv, gymmoves, moves, gym <- not mandatory, but preferably present.
 * Extracted the IV, CP, LEVEL from the description for future notifications on them
 
 
 
-====
+----
 # KeywordBot
 * Forked from https://github.com/berkuhlee/KeywordBot
 * http://discordpy.readthedocs.io/en/latest/api.html

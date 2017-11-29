@@ -1,9 +1,10 @@
 # Changelog
 28/11/2017
 ----
+* Added configurable channel to listen for `!notification` call. Settings in config.ini under bot.triggerchannels, look at example file
 * moved regex to the configuration to make them configurable for different setups
- * Capture groups for the title: pokemon, level <- not mandatory, but preferably present.
- * Capture groups for the description: cp, form, level, gender, region, iv, gymmoves, moves, gym <- not mandatory, but preferably present.
+* Capture groups for the title: pokemon, level <- not mandatory, but preferably present.
+* Capture groups for the description: cp, form, level, gender, region, iv, gymmoves, moves, gym <- not mandatory, but preferably present.
 * Extracted the IV, CP, LEVEL from the description for future notifications on them
 
 
@@ -32,9 +33,9 @@ Setup requirements
 After setting those up execute the following commands
 - pip3 install git+https://github.com/Rapptz/discord.py@async
 - pip3 install requests
-- pip3 install mysqlclient
 - pip3 install configparser
 - pip3 install default-libmysqlclient-dev
+- pip3 install mysqlclient
 
 
 Initial configuration

@@ -33,6 +33,7 @@ protected_roles = config.get('protected', 'protected.roles')
 bot_spawn = config.get('bot', 'bot.spawn')
 bot_raid = config.get('bot', 'bot.raid').split(',')
 bot_keywordlimit = int(config.get('bot', 'bot.keywordlimit'))
+bot_triggerchannels = config.get('bot', 'bot.triggerchannels').split(',')
 bot_ivenable = int(config.get('bot', 'bot.ivenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
 bot_version = config.get('bot', 'bot.version')
@@ -128,7 +129,7 @@ def on_message(message):
     global notifications_list
     global notifraid_list
     global channel_list
-    if message.channel.id == '365874059302666250' and not message.channel.is_private and '!notification' == message.content[0:13]:
+    if message.channel.id in bot_triggerchannels and not message.channel.is_private and '!notification' == message.content[0:13]:
         if roleacc(message, 'user') or roleacc(message, 'admin'):
             server = client.get_server(discord_server)
             usr = server.get_member(message.author.id)

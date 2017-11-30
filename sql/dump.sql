@@ -53,6 +53,20 @@ CREATE TABLE `notificationbot_coord` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `notificationbot_cp`
+--
+
+DROP TABLE IF EXISTS `notificationbot_cp`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `notificationbot_cp` (
+  `discord_id` bigint(20) unsigned NOT NULL,
+  `cp` int(11) DEFAULT NULL,
+  PRIMARY KEY (`discord_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `notificationbot_iv`
 --
 
@@ -101,6 +115,20 @@ CREATE TABLE `notificationbot_levenshtein` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `notificationbot_lvl`
+--
+
+DROP TABLE IF EXISTS `notificationbot_lvl`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `notificationbot_lvl` (
+  `discord_id` bigint(20) unsigned NOT NULL,
+  `lvl` int(11) DEFAULT NULL,
+  PRIMARY KEY (`discord_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `notificationbot_roles`
 --
 
@@ -129,4 +157,4 @@ CREATE TABLE `notificationbot_roles` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2017-11-30 16:29:14
+-- Dump completed on 2017-11-30 17:23:41

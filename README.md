@@ -1,6 +1,7 @@
 # Changelog
 30/11/2017
 ----
+* Execute update-0.97-to-0.98.sql if you have an existing installation, otherwise start from dump.sql
 * Added admin.super setting in config.ini (check the example) to allow the definition of superadmins outside of the in-discord settings
 * Based the coordinates regex on the embed url rather than the description so the filter functionality works for defauft embed configuration.
 * Added a clean database structure for the bot for new installations

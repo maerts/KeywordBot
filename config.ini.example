@@ -10,6 +10,8 @@ sql.port=3306
 sql.db=notificationbot
 [protected]
 protected.roles=
+[admin]
+admin.super=205342915034087424,341730842303004673
 [bot]
 bot.raid=Pokaroo-Raid,Pokaroo-Egg
 bot.spawn=PokarooLndOnt

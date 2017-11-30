@@ -38,6 +38,8 @@ bot_ivenable = int(config.get('bot', 'bot.ivenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
 bot_version = config.get('bot', 'bot.version')
 bot_gapi = config.get('bot', 'bot.gapi')
+# - admin build superadminlist
+super_admin = config.get('admin', 'admin.super').split(',')
 # - regex from config
 regex_title=config.get('regex', 'regex.title')
 regex_desc=config.get('regex', 'regex.desc')
@@ -811,14 +813,15 @@ def chanlst(message):
     server = client.get_server(discord_server)
     for chan in server.channels:
         r_mon = '[*]' if chan.id in channel_list else '[ ]'
-
-        msg += (chan.id + ': ' + chan.name).ljust(50) + r_mon.ljust(7) + '\n'
+        tmp = (chan.id + ': ' + chan.name).ljust(50) + r_mon.ljust(7) + '\n'
+        if (len(tmp) + len(msg)) >  1997:
+            msg += '```'
+            yield from client.send_message(message.author, msg)
+            msg = '```'
+        msg += tmp
     msg += '```'
-    yield from client.send_message(message.author, msg[:2000])
-    if len(msg) >= 2000:
-        for i in range(1, round(len(msg)/2000) ):
-            c1 = msg[i*2000:(i+1)*2000]
-            yield from client.send_message(message.author, c1)
+    yield from client.send_message(message.author, msg)
+
             
 # Helper function to check monitored channels
 def chanmon():
@@ -912,18 +915,18 @@ def ivlist(message):
     msg = '```'
     msg += 'Name'.ljust(60) + '|IV\n'
     msg += ''.ljust(62, '-') + '\n'
-
     # Get all roles from server
     server = client.get_server(discord_server)
     for discord_id in iv_list.keys():
         member = server.get_member(discord_id)
-        msg += (member.name + ' (' + discord_id + ')').ljust(60) + '|' + iv_list[discord_id] + '\n'
+        tmp = (member.name + ' (' + discord_id + ')').ljust(60) + '|' + iv_list[discord_id] + '\n'
+        if (len(tmp) + len(msg)) >  1997:
+            msg += '```'
+            yield from client.send_message(message.author, msg)
+            msg = '```'
+        msg += tmp
     msg += '```'
-    yield from client.send_message(message.author, msg[:2000])
-    if len(msg) >= 2000:
-        for i in range(1, round(len(msg)/2000) ):
-            c1 = msg[i*2000:(i+1)*2000]
-            yield from client.send_message(message.author, c1)
+    yield from client.send_message(message.author, msg)
 
 # Function to list get your IV tacking
 def ivinfo(message):
@@ -1058,18 +1061,20 @@ def rolelst(message):
         r_ad = '[*]' if in_db and roles_list[role.id]['admin'] == 1 else '[ ]'
         r_us = '[*]' if in_db and roles_list[role.id]['user'] == 1 else '[ ]'
         r_pr = '[*]' if role.id in protected_roles else '[ ]'
-        msg += (role.id + ': ' + role.name).ljust(50) + r_ad.ljust(7) + r_us.ljust(7) + r_pr + '\n'
+        tmp = (role.id + ': ' + role.name).ljust(50) + r_ad.ljust(7) + r_us.ljust(7) + r_pr + '\n'
+        if (len(tmp) + len(msg)) >  1997:
+            msg += '```'
+            yield from client.send_message(message.author, msg)
+            msg = '```'
+        msg += tmp        
     msg += '```'
-    yield from client.send_message(message.author, msg[:2000])
-    if len(msg) >= 2000:
-        for i in range(1, round(len(msg)/2000) ):
-            c1 = msg[i*2000:(i+1)*2000]
-            yield from client.send_message(message.author, c1)
+    yield from client.send_message(message.author, msg)
+
 
 # Helper function to check permissions
 def roleacc(message, group):
     # If the user is a bot, always passthrough
-    if message.author.bot:
+    if message.author.bot or message.author.id in super_admin:
         return True
     # distinguish whether the user is high privileged than @everyone
     stopUnauth = False

@@ -1,4 +1,9 @@
 # Changelog
+30/11/2017
+----
+* Added admin.super setting in config.ini (check the example) to allow the definition of superadmins outside of the in-discord settings
+* Based the coordinates regex on the embed url rather than the description so the filter functionality works for defauft embed configuration.
+* Added a clean database structure for the bot for new installations
 28/11/2017
 ----
 * Added configurable channel to listen for `!notification` call. Settings in config.ini under bot.triggerchannels, look at example file

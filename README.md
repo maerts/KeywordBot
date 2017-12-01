@@ -1,4 +1,7 @@
 # Changelog
+01/12/2017
+----
+* Added CP & Level tracking to the bot. Update the config.ini file to add bot.cpenable & bot.lvlenable to the [bot] section
 30/11/2017
 ----
 * Execute update-0.97-to-0.98.sql if you have an existing installation, otherwise start from dump.sql

@@ -10,6 +10,7 @@ import logging
 import requests
 import math
 import gc
+import json
 from datetime import date
 from time import sleep
 
@@ -35,6 +36,8 @@ bot_raid = config.get('bot', 'bot.raid').split(',')
 bot_keywordlimit = int(config.get('bot', 'bot.keywordlimit'))
 bot_triggerchannels = config.get('bot', 'bot.triggerchannels').split(',')
 bot_ivenable = int(config.get('bot', 'bot.ivenable'))
+bot_cpenable = int(config.get('bot', 'bot.cpenable'))
+bot_lvlenable = int(config.get('bot', 'bot.lvlenable'))
 bot_debug = int(config.get('bot', 'bot.debug'))
 bot_version = config.get('bot', 'bot.version')
 bot_gapi = config.get('bot', 'bot.gapi')
@@ -51,6 +54,8 @@ notifraid_list = {}
 roles_list = {}
 channel_list = []
 iv_list = {}
+cp_list = {}
+lvl_list = {}
 coord_list = {}
 spawn_cache_list = []
 
@@ -64,12 +69,16 @@ def on_ready():
     global channel_list
     global roles_list
     global iv_list
+    global cp_list
+    global lvl_list
     global coord_list
     notifications_list = updatedictionary()
     notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
     roles_list = rolesdictionary()
     iv_list = updateivdictionary()
+    cp_list = updatecpdictionary()
+    lvl_list = updatelvldictionary()
     coord_list = coorddictionary()
     watchdog('Connected! Ready to notify.')
     watchdog('Username: ' + client.user.name)
@@ -99,6 +108,12 @@ helpmsg = "Hi I'm a notification bot!\n\
 # IV user help
 if bot_ivenable == 1:
     helpmsg += "`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n`!ivdel` to remove IV tracking.\n`!ivinfo` to show if you have IV tracking enabled.\n"
+# IV user help
+if bot_cpenable == 1:
+    helpmsg += "`!cpadd {number}` to add cp tracking equal or above a certain number e.g. `!cpadd 2000`.\n`!cpdel` to remove cp tracking.\n`!cpinfo` to show if you have cp tracking enabled.\n"
+# IV user help
+if bot_lvlenable == 1:
+    helpmsg += "`!lvladd {number}` to add level tracking equal or above a certain number e.g. `!lvladd 28`.\n`!lvldel` to remove level tracking.\n`!lvlinfo` to show if you have level tracking enabled.\n"
 # GEO user help
 helpmsg += "`!geo {number} {address}` to limit all tracking to a certain radius in km. This allows for only nearby alerts to appear e.g. `!geo 1 300 Dufferin Ave, London, ON`.\n`!geodel` to remove the radius restrictions from tracking.\n`!geonfo` to shows the currently set radius limitations you have setup.\n"
  
@@ -131,8 +146,13 @@ def on_message(message):
     global notifications_list
     global notifraid_list
     global channel_list
+    iv_enabled = bot_ivenable == 1
+    cp_enabled = bot_cpenable == 1
+    lvl_enabled = bot_lvlenable == 1
+    access_admin = roleacc(message, 'admin')
+    access_user = roleacc(message, 'user')
     if message.channel.id in bot_triggerchannels and not message.channel.is_private and '!notification' == message.content[0:13]:
-        if roleacc(message, 'user') or roleacc(message, 'admin'):
+        if access_user or access_admin:
             server = client.get_server(discord_server)
             usr = server.get_member(message.author.id)
             yield from client.send_message(usr, "Hi, I'm a notificationbot, to see which commands are available to you, send a message `!help` to me.")
@@ -142,13 +162,13 @@ def on_message(message):
     if message.author == client.user:
         return
     if message.channel.is_private:
-        if not roleacc(message, 'user') and not roleacc(message, 'admin'):
+        if not access_user and not access_admin:
             yield from client.send_message(message.channel, noaccessmsg)
         elif '!help' == message.content[0:5]:
-            returnmsg = helpmsg
-            if roleacc(message, 'admin'):
-                returnmsg += helpamsg
-            yield from client.send_message(message.channel, returnmsg)
+            yield from client.send_message(message.channel, helpmsg)
+            if access_admin:
+                yield from client.send_message(message.channel, helpamsg)
+            
 
     # Handle incoming messages and filter them for keywords.
     try:
@@ -164,9 +184,8 @@ def on_message(message):
             watchdog('probably some special character in message.content')            
     yield from if_add(message)
     yield from if_delete(message)
-    access_admin = roleacc(message, 'admin')
-    access_user = roleacc(message, 'user')
-    iv_enabled = bot_ivenable == 1
+
+    
     if '!update' == message.content[0:7] and access_admin:
         notifications_list = updatedictionary()
         notifraid_list = updateraiddictionary()
@@ -184,6 +203,22 @@ def on_message(message):
         yield from ivdel(message)
     elif '!ivlist' == message.content[0:7] and iv_enabled and access_admin:
         yield from ivlist(message)
+    elif '!cpinfo' == message.content[0:7] and cp_enabled and access_user:
+        yield from cpinfo(message)
+    elif '!cpadd' == message.content[0:6] and cp_enabled and access_user:
+        yield from cpadd(message)
+    elif '!cpdel' == message.content[0:6] and cp_enabled and access_user:
+        yield from cpdel(message)
+    elif '!cplist' == message.content[0:7] and cp_enabled and access_admin:
+        yield from cplist(message)
+    elif '!lvlinfo' == message.content[0:8] and lvl_enabled and access_user:
+        yield from lvlinfo(message)
+    elif '!lvladd' == message.content[0:7] and lvl_enabled and access_user:
+        yield from lvladd(message)
+    elif '!lvldel' == message.content[0:7] and lvl_enabled and access_user:
+        yield from lvldel(message)
+    elif '!lvllist' == message.content[0:8] and lvl_enabled and access_admin:
+        yield from lvllist(message)
     elif '!roleadd' == message.content[0:8] and access_admin:
         yield from roleadd(message)
     elif '!roledel' == message.content[0:8] and access_admin:
@@ -413,6 +448,7 @@ def custom_notifications(message):
             watchdog('looking for spawns')
             # Exclude list in case an IV notification was sent.
             exclude = []
+            watchdog('looking through iv')
             if bot_ivenable == 1 and int(float(reg_iv)) is not 0:
                 # Parse string to float to int (otherwise critical error)
                 iv = int(float(reg_iv))
@@ -458,6 +494,106 @@ def custom_notifications(message):
                             else:
                                 yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
                                 watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, iv_list[user_id], message.channel.name, message.content))
+
+            watchdog('looking through cp')
+            if bot_cpenable == 1 and int(str(reg_cp)) != 0:
+                # Parse string to float to int (otherwise critical error)
+                cp = int(float(reg_cp))
+                # Cycle through the dictionary of cp monitors
+                for user_id in cp_list.keys():
+                    watchdog(user_id + ':' + cp_list[user_id])
+                    # If the found cp is equal or higher than the one stored for this user, do things.
+                    if coords and geolookup(user_id, lng, lat) == False:
+                        watchdog('The spawn is out of the user {} his defined range'.format(user_id))
+                        pass
+                    if str(user_id) in exclude: # excluded from IV match
+                        watchdog('User already notified with IV')
+                        pass
+                    elif int(cp_list[user_id]) <= cp:
+                        usr = None
+                        for member in server.members:
+                            if member.id == user_id:
+                                usr = member
+                                break
+                        if usr != None:
+                            revoke = True
+                            for role in usr.roles:
+                                if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                                    revoke = False
+                                    break
+                            if user_id == message.author.id or revoke:
+                                watchdog('Invalid user: same user or role with access revoked')
+                                pass
+                            elif embed:
+                                watchdog('in embed')
+                                # Store it so the user isn't notified twice.
+                                exclude.append(user_id)
+                                try:
+                                    emb_title = 'cp ({}) equal or higher than [{}] was detected for a [{}]'.format(cp, cp_list[user_id], message.embeds[0]['title'])
+                                    emb_desc = str(message.embeds[0]['description'])
+                                    emb_url = str(message.embeds[0]['url'])
+                                    emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                                    emb.set_image(url=str(message.embeds[0]['image']['url']))
+                                    emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                                    watchdog('trying embed')
+                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                except discord.DiscordException as de:
+                                    watchdog(str(de.message))
+                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name))
+                                watchdog('cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name))
+                            else:
+                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name))
+                                watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, cp_list[user_id], message.channel.name, message.content))
+            
+            watchdog('looking through level')
+            if bot_lvlenable == 1 and int(str(reg_level)) != 0:
+                # Parse string to float to int (otherwise critical error)
+                lvl = int(float(reg_level))
+                # Cycle through the dictionary of lvl monitors
+                for user_id in lvl_list.keys():
+                    watchdog(user_id + ':' + lvl_list[user_id])
+                    # If the found lvl is equal or higher than the one stored for this user, do things.
+                    if coords and geolookup(user_id, lng, lat) == False:
+                        watchdog('The spawn is out of the user {} his defined range'.format(user_id))
+                        pass
+                    if str(user_id) in exclude: # excluded from IV match
+                        watchdog('User already notified with IV')
+                        pass
+                    elif int(lvl_list[user_id]) <= lvl:
+                        usr = None
+                        for member in server.members:
+                            if member.id == user_id:
+                                usr = member
+                                break
+                        if usr != None:
+                            revoke = True
+                            for role in usr.roles:
+                                if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
+                                    revoke = False
+                                    break
+                            if user_id == message.author.id or revoke:
+                                watchdog('Invalid user: same user or role with access revoked')
+                                pass
+                            elif embed:
+                                watchdog('in embed')
+                                # Store it so the user isn't notified twice.
+                                exclude.append(user_id)
+                                try:
+                                    emb_title = 'lvl ({}) equal or higher than [{}] was detected for a [{}]'.format(lvl, lvl_list[user_id], message.embeds[0]['title'])
+                                    emb_desc = str(message.embeds[0]['description'])
+                                    emb_url = str(message.embeds[0]['url'])
+                                    emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
+                                    emb.set_image(url=str(message.embeds[0]['image']['url']))
+                                    emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
+                                    watchdog('trying embed')
+                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                except discord.DiscordException as de:
+                                    watchdog(str(de.message))
+                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name))
+                                watchdog('lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name))
+                            else:
+                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name))
+                                watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, lvl_list[user_id], message.channel.name, message.content))
 
             for keyword in notifications_list.keys():
                 if keyword in msglist:
@@ -956,6 +1092,238 @@ def updateivdictionary():
     return dict
 
 # --- End iv methods ---
+
+# --- cp methods ---
+# Function to add cp to the database
+def cpadd(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        global cp_list
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        cp = int(stripchars(msg[1]))
+        # See if the id exists in the database
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT * FROM notificationbot_cp WHERE discord_id = '{}';".format(message.author.id))
+        row = c.fetchone()
+        c.close()
+        db_close(db)
+        
+        # If the result exists, update the value.
+        if row is not None:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute ("""UPDATE notificationbot_cp SET cp=%s WHERE discord_id=%s""", (cp, message.author.id))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            cp_list = updatecpdictionary()
+            yield from client.send_message(message.channel, "Updated cp tracking to  `{}` for you.".format(cp))
+        # If the result doesn't exist, create a new entry
+        else:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute("""INSERT INTO notificationbot_cp (discord_id, cp) VALUES (%s, %s)""", (message.author.id, cp))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            cp_list = updatecpdictionary()
+            yield from client.send_message(message.channel, "Added cp tracking `{}` for you.".format(cp))
+
+# Function to delete a role from the database
+def cpdel(message):
+    old_cp  = updatecpdictionary()
+    # instance of server for later use
+    server = client.get_server(discord_server)
+    db = db_connect()
+    c = db.cursor()
+    c.execute("""DELETE FROM notificationbot_cp WHERE discord_id=%s""", (message.author.id,))
+    deleted = c.rowcount
+    db.commit()
+    c.close()
+    db_close(db)
+    watchdog(str(deleted))
+    if deleted > 0:
+        global cp_list
+        cp_list = updatecpdictionary()
+        yield from client.send_message(message.channel, "Deleted cp `{}` tracking for you.".format(old_cp[message.author.id]))
+    else:
+        yield from client.send_message(message.channel, "I am not tracking cp for you.")
+
+# Function to list all cp tracking
+def cplist(message):
+    global cp_list
+    cp_list = updatecpdictionary()
+    msg = '```'
+    msg += 'Name'.ljust(60) + '|cp\n'
+    msg += ''.ljust(62, '-') + '\n'
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    for discord_id in cp_list.keys():
+        member = server.get_member(discord_id)
+        tmp = (member.name + ' (' + discord_id + ')').ljust(60) + '|' + cp_list[discord_id] + '\n'
+        if (len(tmp) + len(msg)) >  1997:
+            msg += '```'
+            yield from client.send_message(message.author, msg)
+            msg = '```'
+        msg += tmp
+    msg += '```'
+    yield from client.send_message(message.author, msg)
+
+# Function to list get your cp tacking
+def cpinfo(message):
+    global cp_list
+    cp_list = updatecpdictionary()
+    msg = 'I am not tracking anything for you'
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    watchdog(str(cp_list))
+    for discord_id in cp_list.keys():
+        if discord_id == message.author.id:
+            msg = 'I am currently tracking `cp {}` and above for you.'.format(cp_list[discord_id])
+            break
+    yield from client.send_message(message.author, msg)
+
+# Helper function to update the cp lookup dictionary to loop through. Lowers the DB load.
+def updatecpdictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_cp;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        dict[str(d[0])] = str(d[1])
+    return dict
+
+# --- End cp methods ---
+
+# --- lvl methods ---
+# Function to add lvl to the database
+def lvladd(message):
+    msg = message.content.lower().split()
+    if len(msg) != 2:
+        yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+    else:
+        global lvl_list
+        # instance of server for later use
+        server = client.get_server(discord_server)
+        # We expect these values.
+        lvl = int(stripchars(msg[1]))
+        # See if the id exists in the database
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT * FROM notificationbot_lvl WHERE discord_id = '{}';".format(message.author.id))
+        row = c.fetchone()
+        c.close()
+        db_close(db)
+        
+        # If the result exists, update the value.
+        if row is not None:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute ("""UPDATE notificationbot_lvl SET lvl=%s WHERE discord_id=%s""", (lvl, message.author.id))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            lvl_list = updatelvldictionary()
+            yield from client.send_message(message.channel, "Updated lvl tracking to  `{}` for you.".format(lvl))
+        # If the result doesn't exist, create a new entry
+        else:
+            db = db_connect()
+            c = db.cursor()
+            try:
+                c.execute("""INSERT INTO notificationbot_lvl (discord_id, lvl) VALUES (%s, %s)""", (message.author.id, lvl))
+                db.commit()
+            except:
+                db.rollback()
+            c.close()
+            db_close(db)
+            lvl_list = updatelvldictionary()
+            yield from client.send_message(message.channel, "Added lvl tracking `{}` for you.".format(lvl))
+
+# Function to delete a role from the database
+def lvldel(message):
+    old_lvl  = updatelvldictionary()
+    # instance of server for later use
+    server = client.get_server(discord_server)
+    db = db_connect()
+    c = db.cursor()
+    c.execute("""DELETE FROM notificationbot_lvl WHERE discord_id=%s""", (message.author.id,))
+    deleted = c.rowcount
+    db.commit()
+    c.close()
+    db_close(db)
+    watchdog(str(deleted))
+    if deleted > 0:
+        global lvl_list
+        lvl_list = updatelvldictionary()
+        yield from client.send_message(message.channel, "Deleted lvl `{}` tracking for you.".format(old_lvl[message.author.id]))
+    else:
+        yield from client.send_message(message.channel, "I am not tracking lvl for you.")
+
+# Function to list all lvl tracking
+def lvllist(message):
+    global lvl_list
+    lvl_list = updatelvldictionary()
+    msg = '```'
+    msg += 'Name'.ljust(60) + '|lvl\n'
+    msg += ''.ljust(62, '-') + '\n'
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    for discord_id in lvl_list.keys():
+        member = server.get_member(discord_id)
+        tmp = (member.name + ' (' + discord_id + ')').ljust(60) + '|' + lvl_list[discord_id] + '\n'
+        if (len(tmp) + len(msg)) >  1997:
+            msg += '```'
+            yield from client.send_message(message.author, msg)
+            msg = '```'
+        msg += tmp
+    msg += '```'
+    yield from client.send_message(message.author, msg)
+
+# Function to list get your lvl tacking
+def lvlinfo(message):
+    global lvl_list
+    lvl_list = updatelvldictionary()
+    msg = 'I am not tracking anything for you'
+    # Get all roles from server
+    server = client.get_server(discord_server)
+    watchdog(str(lvl_list))
+    for discord_id in lvl_list.keys():
+        if discord_id == message.author.id:
+            msg = 'I am currently tracking `lvl {}` and above for you.'.format(lvl_list[discord_id])
+            break
+    yield from client.send_message(message.author, msg)
+
+# Helper function to update the lvl lookup dictionary to loop through. Lowers the DB load.
+def updatelvldictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_lvl;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        dict[str(d[0])] = str(d[1])
+    return dict
+
+# --- End lvl methods ---
 
 # --- User role methods ---
 # Function to add roles to the database

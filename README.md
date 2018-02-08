@@ -1,4 +1,8 @@
 # Changelog
+08/02/2018
+----
+* Added the !mute and !unmute commands so you can temporarily disable the bot on a per-user basis
+* moved the notifications to an asynchronous function to prevent discord from throttling in case of too many notifications
 01/12/2017
 ----
 * Added CP & Level tracking to the bot. Update the config.ini file to add bot.cpenable & bot.lvlenable to the [bot] section

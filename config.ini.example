@@ -21,7 +21,7 @@ bot.ivenable=1
 bot.cpenable=1
 bot.lvlenable=1
 bot.debug=1
-bot.version=0.98
+bot.version=1.00
 bot.gapi=yourgoogleapikey
 [regex]
 regex.title=/(?P<level>level: \d )?(vs )?(?P<pokemon>[^!\(\)]*)(!)?(\([\d.]+\%\))?/si

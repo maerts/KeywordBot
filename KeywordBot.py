@@ -11,8 +11,11 @@ import requests
 import math
 import gc
 import json
+import time
+import functools
+import random
 from datetime import date
-from time import sleep
+from itertools import count
 
 ## Get configuration from ini file
 ## No validation on its presence, so make sure these are present
@@ -58,6 +61,7 @@ cp_list = {}
 lvl_list = {}
 coord_list = {}
 spawn_cache_list = []
+mute_list = []
 
 # Start discord client
 client = discord.Client()
@@ -72,7 +76,9 @@ def on_ready():
     global cp_list
     global lvl_list
     global coord_list
+    global mute_list
     notifications_list = updatedictionary()
+    watchdog(str(notifications_list))
     notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
     roles_list = rolesdictionary()
@@ -80,6 +86,7 @@ def on_ready():
     cp_list = updatecpdictionary()
     lvl_list = updatelvldictionary()
     coord_list = coorddictionary()
+    mute_list = mutedictionary()
     watchdog('Connected! Ready to notify.')
     watchdog('Username: ' + client.user.name)
     watchdog('ID: ' + client.user.id)
@@ -104,6 +111,8 @@ helpmsg = "Hi I'm a notification bot!\n\
 `!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
 `!notifications` for a list of your current notifications.\n\
 `!keywords help` not sure which strings to add? Send this command to the bot and you'll get an overview.\n\
+`!mute` to temporarily stop receiving notifications.\n\
+`!unmute` to start receiving messages again after using the `!mute` command.\n\
 "
 # IV user help
 if bot_ivenable == 1:
@@ -179,7 +188,7 @@ def on_message(message):
             ret = message.content
             if len(message.embeds) == 1:
                 ret = message.embeds[0]['title']
-            watchdog('Nobody has trigger for: '+ ret)
+            watchdog('Processed '+ ret)
         except:
             watchdog('probably some special character in message.content')            
     yield from if_add(message)
@@ -189,6 +198,10 @@ def on_message(message):
     if '!update' == message.content[0:7] and access_admin:
         notifications_list = updatedictionary()
         notifraid_list = updateraiddictionary()
+    elif '!mute' == message.content[0:5] and access_user:
+        yield from mute(message)
+    elif '!unmute' == message.content[0:7] and access_user:
+        yield from unmute(message)
     elif '!chanlst' == message.content[0:8] and access_admin:
         yield from chanlst(message)
     elif '!chanadd' == message.content[0:8] and access_admin:
@@ -242,6 +255,67 @@ def on_message(message):
 
 ##################################################
 
+# --- Mute function ---
+def mute(message):
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_mute WHERE discord_id = '{}';".format(message.author.id))
+    row = c.fetchone()
+    c.close()
+    db_close(db)
+    
+    # If the result exists, update the value.
+    if row is not None:
+        yield from client.send_message(message.author, "You have already muted me, you can't double mute me, keep on dreaming.")
+    # If the result doesn't exist, create a new entry
+    else:
+        db = db_connect()
+        c = db.cursor()
+        try:
+            c.execute("""INSERT INTO notificationbot_mute (discord_id) VALUES (%s)""", (message.author.id,))
+            db.commit()
+        except:
+            db.rollback()
+        c.close()
+        db_close(db)
+        watchdog("User with id `{}` muted me".format(message.author.id))
+        global mute_list
+        mute_list = mutedictionary()
+        yield from client.send_message(message.author, "You have muted me, you will not receive any notifications until you send `!unmute` to me.")
+
+    
+def unmute(message):
+    db = db_connect()
+    c = db.cursor()
+    c.execute("""DELETE FROM notificationbot_mute WHERE discord_id=%s""", (message.author.id,))
+    deleted = c.rowcount
+    db.commit()
+    c.close()
+    db_close(db)
+    watchdog(str(deleted))
+    if deleted > 0:
+        watchdog("User with id `{}` unmuted me".format(message.author.id))
+        global mute_list
+        mute_list = mutedictionary()
+        yield from client.send_message(message.author, "You have unmuted me, you will receive notifications again!")
+    else:
+        yield from client.send_message(message.channel, "Oh, you weren't muting me to begin with, so nothing changes!")
+    
+
+# Helper function to update the coord lookup dictionary to loop through. Lowers the DB load.
+def mutedictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT * FROM notificationbot_mute;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = []
+    for i, d in enumerate(data):
+        dict.append(d[0])
+    return dict
+# --- End mute function ---
+
 # --- Helper function ---
 def keywords_help(message):
     cwd = os.getcwd()
@@ -268,6 +342,7 @@ def custom_notifications(message):
     global roles_list
     global notifications_list
     global notifraid_list
+    global mute_list
     server = client.get_server(discord_server)
     if message.channel.name == None:
         return
@@ -282,6 +357,10 @@ def custom_notifications(message):
     reg_cp = 0
     reg_level = 0
     pokemonname = ""
+    gymname = ""
+    raidlevel = ""
+    emb_dic = {}
+    txt_dic = {}
     if len(message.embeds) == 1:
         embed = True
         keywordlist = []
@@ -300,6 +379,7 @@ def custom_notifications(message):
         try:
             if match_title.group('level') is not None and match_title.group('level') != "":
                 keywordlist.append(match_title.group('level').strip())
+                raidlevel = match_title.group('level').strip()
         except:
             watchdog('Error getting title capture group level.')
 
@@ -325,6 +405,7 @@ def custom_notifications(message):
             # Add the gym
             if match_desc.group('gym') is not None and match_desc.group('gym') != "":
                 keywordlist.append(match_desc.group('gym'))
+                gymname = match_desc.group('gym')
         except:
             watchdog('Error parsing the gym capture group from the description.')
             
@@ -415,51 +496,57 @@ def custom_notifications(message):
                             revoke = False
                             break
                     aname = message.author.name
-                    if coords and geolookup(user_id, lng, lat) == False: # if outside the users defined range
-                        watchdog('The raid is out of the user {} his defined range'.format(usr.display_name))
+                    if str(user_id) in mute_list: # don't do anything if the user has muted things
+                        pass
+                    elif coords and geolookup(user_id, lng, lat) == False: # if outside the users defined range
+                        watchdog('Out of {} range'.format(usr.display_name))
                         pass
                     elif user_id == message.author.id or revoke: # if no access and slipped through
-                        watchdog('Invalid user: same user or role with access revoked')
+                        watchdog('Originator or revoked')
                         pass
                     elif embed:
                         try:
-                            emb_title = '\'{}\' raid has opened up'.format(keyword, message.channel.name)
+                            if pokemonname != "" and pokemonname != "incoming" and gymname != "":
+                                emb_title = '\'{}\' raid has opened up at `{}`'.format(pokemonname, gymname)
+                            elif raidlevel != "" and gymname != "":
+                                emb_title = '\'{}\' egg will hatch at `{}`'.format(raidlevel, gymname)
+                            else:
+                                emb_title = '\'{}\' raid has opened up'.format(keyword)
                             emb_desc = str(message.embeds[0]['description'])
                             emb_url = str(message.embeds[0]['url'])
                             emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
                             emb.set_image(url=str(message.embeds[0]['image']['url']))
                             emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
-                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                            emb_dic[usr.id] = emb
                         except discord.DiscordException as de:
                             watchdog(str(de.message))
-                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{}` raid has opened up. {}'.format(keyword, message.embeds[0]['url']))
                         watchdog('`{}` raid has opened up. {}'.format(keyword, message.embeds[0]['url']))
                     else:
-                        yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(aname, keyword, message.channel.name, message.content))
+                        emb_txt[usr.id] = '`{} mentioned` **{}** `in #{}:` {}'.format(aname, keyword, message.channel.name, message.content)
                         watchdog('{} mentioned {} in #{}: {}'.format(aname, keyword, message.channel.name, message.content))
     elif message.author.name == bot_spawn:
         entry = str(lng) + " " + str(lat)
+        # Exclude list in case a notification was sent.
+        exclude = []
         if entry not in spawn_cache_list:
-            if len(spawn_cache_list) >= 10:
+            if len(spawn_cache_list) >= 25:
                 spawn_cache_list.pop(0)
-                watchdog('Popped from list current length {}'.format(str(spawn_cache_list)))
-            spawn_cache_list.append(entry)
 
+            spawn_cache_list.append(entry)
             watchdog('looking for spawns')
-            # Exclude list in case an IV notification was sent.
-            exclude = []
             watchdog('looking through iv')
             if bot_ivenable == 1 and int(float(reg_iv)) is not 0:
                 # Parse string to float to int (otherwise critical error)
                 iv = int(float(reg_iv))
                 # Cycle through the dictionary of IV monitors
                 for user_id in iv_list.keys():
-                    watchdog(user_id + ':' + iv_list[user_id])
-                    # If the found IV is equal or higher than the one stored for this user, do things.
-                    if coords and geolookup(user_id, lng, lat) == False:
-                        watchdog('The spawn is out of the user {} his defined range'.format(user_id))
+                    if str(user_id) in mute_list: # don't do anything if the user has muted things
+                        pass
+                    elif coords and geolookup(user_id, lng, lat) == False: # If the found IV is equal or higher than the one stored for this user, do things.
+                        watchdog('Out of {} range'.format(user_id))
                         pass
                     elif int(iv_list[user_id]) <= iv:
+                        watchdog(user_id + ':' + iv_list[user_id])
                         usr = None
                         for member in server.members:
                             if member.id == user_id:
@@ -472,27 +559,30 @@ def custom_notifications(message):
                                     revoke = False
                                     break
                             if user_id == message.author.id or revoke:
-                                watchdog('Invalid user: same user or role with access revoked')
+                                watchdog('Originator or revoked')
                                 pass
                             elif embed:
                                 watchdog('in embed')
                                 # Store it so the user isn't notified twice.
                                 exclude.append(user_id)
+                                printtitle = 'IV ({})'.format(iv)
+                                if pokemonname != "":
+                                    printtitle = '{} {}'.format(printtitle, pokemonname)
+                                    
                                 try:
-                                    emb_title = 'IV ({}) equal or higher than [{}] was detected for a [{}]'.format(iv, iv_list[user_id], message.embeds[0]['title'])
+                                    emb_title = '{} equal or higher than `{}` was detected'.format(printtitle, iv_list[user_id])
                                     emb_desc = str(message.embeds[0]['description'])
                                     emb_url = str(message.embeds[0]['url'])
                                     emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
                                     emb.set_image(url=str(message.embeds[0]['image']['url']))
                                     emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
                                     watchdog('trying embed')
-                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                    emb_dic[usr.id] = emb
                                 except discord.DiscordException as de:
                                     watchdog(str(de.message))
-                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
-                                watchdog('IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                                watchdog('IV ({}) >= `[{}] in #{}`'.format(iv, iv_list[user_id], message.channel.name))
                             else:
-                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name))
+                                emb_txt[usr.id] = 'IV ({}) equal or higher than `[{}] was detected` `in #{}`'.format(iv, iv_list[user_id], message.channel.name)
                                 watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, iv_list[user_id], message.channel.name, message.content))
 
             watchdog('looking through cp')
@@ -502,12 +592,13 @@ def custom_notifications(message):
                 # Cycle through the dictionary of cp monitors
                 for user_id in cp_list.keys():
                     watchdog(user_id + ':' + cp_list[user_id])
-                    # If the found cp is equal or higher than the one stored for this user, do things.
-                    if coords and geolookup(user_id, lng, lat) == False:
-                        watchdog('The spawn is out of the user {} his defined range'.format(user_id))
+                    if str(user_id) in mute_list: # don't do anything if the user has muted things
+                        pass
+                    elif coords and geolookup(user_id, lng, lat) == False: # If the found cp is equal or higher than the one stored for this user, do things.
+                        watchdog('Out of {} range'.format(user_id))
                         pass
                     if str(user_id) in exclude: # excluded from IV match
-                        watchdog('User already notified with IV')
+                        watchdog('User already notified on previous criteria')
                         pass
                     elif int(cp_list[user_id]) <= cp:
                         usr = None
@@ -522,7 +613,7 @@ def custom_notifications(message):
                                     revoke = False
                                     break
                             if user_id == message.author.id or revoke:
-                                watchdog('Invalid user: same user or role with access revoked')
+                                watchdog('Originator or revoked')
                                 pass
                             elif embed:
                                 watchdog('in embed')
@@ -536,13 +627,12 @@ def custom_notifications(message):
                                     emb.set_image(url=str(message.embeds[0]['image']['url']))
                                     emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
                                     watchdog('trying embed')
-                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                    emb_dic[usr.id] = emb
                                 except discord.DiscordException as de:
                                     watchdog(str(de.message))
-                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name))
                                 watchdog('cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name))
                             else:
-                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name))
+                                emb_txt[usr.id] = 'cp ({}) equal or higher than `[{}] was detected` `in #{}`'.format(cp, cp_list[user_id], message.channel.name)
                                 watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, cp_list[user_id], message.channel.name, message.content))
             
             watchdog('looking through level')
@@ -552,12 +642,13 @@ def custom_notifications(message):
                 # Cycle through the dictionary of lvl monitors
                 for user_id in lvl_list.keys():
                     watchdog(user_id + ':' + lvl_list[user_id])
-                    # If the found lvl is equal or higher than the one stored for this user, do things.
-                    if coords and geolookup(user_id, lng, lat) == False:
-                        watchdog('The spawn is out of the user {} his defined range'.format(user_id))
+                    if str(user_id) in mute_list: # don't do anything if the user has muted things
+                        pass
+                    elif coords and geolookup(user_id, lng, lat) == False: # If the found lvl is equal or higher than the one stored for this user, do things.
+                        watchdog('Out of {} range'.format(user_id))
                         pass
                     if str(user_id) in exclude: # excluded from IV match
-                        watchdog('User already notified with IV')
+                        watchdog('User already notified on previous criteria')
                         pass
                     elif int(lvl_list[user_id]) <= lvl:
                         usr = None
@@ -572,7 +663,7 @@ def custom_notifications(message):
                                     revoke = False
                                     break
                             if user_id == message.author.id or revoke:
-                                watchdog('Invalid user: same user or role with access revoked')
+                                watchdog('Originator or revoked')
                                 pass
                             elif embed:
                                 watchdog('in embed')
@@ -586,13 +677,12 @@ def custom_notifications(message):
                                     emb.set_image(url=str(message.embeds[0]['image']['url']))
                                     emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
                                     watchdog('trying embed')
-                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                    emb_dic[usr.id] = emb
                                 except discord.DiscordException as de:
                                     watchdog(str(de.message))
-                                    yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name))
                                 watchdog('lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name))
                             else:
-                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), 'lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name))
+                                emb_txt[usr.id] =  'lvl ({}) equal or higher than `[{}] was detected` `in #{}`'.format(lvl, lvl_list[user_id], message.channel.name)
                                 watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, lvl_list[user_id], message.channel.name, message.content))
 
             for keyword in notifications_list.keys():
@@ -607,32 +697,70 @@ def custom_notifications(message):
                             if role.id in roles_list.keys() and roles_list[role.id]['user'] == 1:
                                 revoke = False
                                 break
-                        if str(user_id) in exclude: # excluded from IV match
-                            watchdog('User already notified with IV')
+                        if str(user_id) in mute_list: # don't do anything if the user has muted things
+                            pass
+                        elif str(user_id) in exclude: # excluded from IV match
+                            watchdog('User already notified on previous criteria')
                             pass
                         elif coords and geolookup(user_id, lng, lat) == False: # limited in radius
-                            watchdog('The spawn is out of the user {} his defined range'.format(usr.name))
+                            watchdog('Out of {} range'.format(usr.name))
                             pass
                         elif user_id == message.author.id or revoke: # no access and slipped through
-                            watchdog('Invalid user: same user or role with access revoked')
+                            watchdog('Originator or revoked')
                             pass
                         elif embed:
                             watchdog('in embed')
                             try:
-                                emb_title = '`{}` spawn found, triggered by keyword `{}`'.format(message.embeds[0]['title'], keyword)
+                                emb_title = "`{}` spawn found, triggered by keyword `{}`".format(pokemonname, keyword)
                                 emb_desc = str(message.embeds[0]['description'])
                                 emb_url = str(message.embeds[0]['url'])
                                 emb = discord.Embed(title=emb_title, description=emb_desc, url=emb_url)
                                 emb.set_image(url=str(message.embeds[0]['image']['url']))
                                 emb.set_thumbnail(url=str(message.embeds[0]['thumbnail']['url']))
-                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), embed=emb)
+                                emb_dic[usr.id] = emb
                             except discord.DiscordException as de:
                                 watchdog(str(de.message))
-                                yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format('Bot', keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
-                            watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, str(message.embeds[0]['title'] + " - " + message.embeds[0]['url'])))
                         else:
-                            yield from client.send_message(discord.utils.find(lambda u: u.id == user_id, client.get_all_members()), '`{} mentioned` **{}** `in #{}:` {}'.format(message.author.name, keyword, message.channel.name, message.content))
-                            watchdog('{} mentioned {} in #{}: {}'.format(message.author.name, keyword, message.channel.name, message.content))
+                            try:
+                                emb_txt[usr.id] = '`{} mentioned` **{}** `in #{}`'.format(message.author.name, keyword, message.channel.name)
+                            except discord.DiscordException as de:
+                                watchdog(str(de.message))
+    if len(emb_dic.keys()) > 0:
+        try:
+            asyncio.ensure_future(fetch_data(emb_dic, 'emb'), loop=client.loop).add_done_callback(data_result)
+        except Exception as exc:
+            print(exc)
+
+    if len(txt_dic.keys()) > 0:
+        try:
+            asyncio.ensure_future(fetch_data(txt_dic, 'txt'), loop=client.loop).add_done_callback(data_result)
+        except Exception as exc:
+            print(exc)
+
+
+def fetch_data(list, type):
+    server = client.get_server(discord_server)
+    counter = 0
+    # watchdog(str(list))
+    for key in list.keys():
+        if counter != 0 and counter % 5 == 0:
+            watchdog('sleep started')
+            time.sleep(random.randint(3, 12))
+            watchdog('sleep passed')
+        counter = counter + 1
+        val = list[key];
+        try:
+            usr = server.get_member(key)
+            if type == 'emb':
+                yield from client.send_message(usr, embed=val)
+            else:
+                yield from client.send_message(usr, val)
+            watchdog('send message to {} of type {}'.format(usr.name, type))
+        except Exception as exc:
+            watchdog(str(exc))
+              
+def data_result(future):
+    watchdog('Loop complete')
 
 # !notify {keyword}
 def if_add(message):
@@ -1509,7 +1637,6 @@ def geolookup(discord_id, lng, lat):
             watchdog(str(float(distance)) + " - " + str(float(u_dist)))
             return float(distance) <= float(u_dist)
         else:
-            watchdog('User does not have range limitation, so let him through')
             return True
     except:
         watchdog('When the parsing has gone to shit, passthrough')
@@ -1842,11 +1969,13 @@ def db_close(connection):
 # --- End helper Methods ---
 
 
-loop = asyncio.get_event_loop()
-try:
-    loop.run_until_complete(client.start(discord_user, discord_pass))
+# loop = asyncio.get_event_loop()
+# try:
+#     loop.run_until_complete(client.start(discord_user, discord_pass, bot=False))
     # loop.run_until_complete(client.connect())
-except Exception:
-    loop.run_until_complete(client.logout())
-finally:
-    loop.close()
+# except Exception as exc:
+#     print(exc)
+#     loop.run_until_complete(client.logout())
+# finally:
+#     loop.close()
+client.run('NDAzNzEwNTcwMDYwMTg1NjIw.DULg-g.SILVNLyIw8D8141mwjhCHtrOAnQ')

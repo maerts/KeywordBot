@@ -53,6 +53,7 @@ regex_desc=config.get('regex', 'regex.desc')
 
 # Create dictionaries placeholders, on_ready they will be filled up from db.
 notifications_list = {}
+notifications_list_adv = {}
 notifraid_list = {}
 roles_list = {}
 channel_list = []
@@ -69,6 +70,7 @@ client = discord.Client()
 @client.async_event
 def on_ready():
     global notifications_list
+    global notifications_list_adv
     global notifraid_list
     global channel_list
     global roles_list
@@ -78,6 +80,8 @@ def on_ready():
     global coord_list
     global mute_list
     notifications_list = updatedictionary()
+    notifications_list_adv = updateadvdictionary()
+    watchdog(str(notifications_list_adv))
     watchdog(str(notifications_list))
     notifraid_list = updateraiddictionary()
     channel_list = chanmon()    
@@ -105,54 +109,70 @@ def on_ready():
 
 # --- Help messages ---
 # The !help message for normal users
-helpmsg = "Hi I'm a notification bot!\n\
-\n\
-`!notify {keyword} {raid} {spawn}` to add/update a PM notification about a certain pokemon raid and/or spawn. The value for raid/spawn is either 1 to track or 0 to not track. Example: `!notify tyranitar 1 1`\n\
-`!notifydel {keyword}` to delete it. Example: `!notifydel tyranitar`\n\
-`!notifications` for a list of your current notifications.\n\
-`!keywords help` not sure which strings to add? Send this command to the bot and you'll get an overview.\n\
-`!mute` to temporarily stop receiving notifications.\n\
-`!unmute` to start receiving messages again after using the `!mute` command.\n\
-"
-# IV user help
-if bot_ivenable == 1:
-    helpmsg += "`!ivadd {number}` to add iv tracking equal or above a certain number e.g. `!ivadd 80`.\n`!ivdel` to remove IV tracking.\n`!ivinfo` to show if you have IV tracking enabled.\n"
-# IV user help
-if bot_cpenable == 1:
-    helpmsg += "`!cpadd {number}` to add cp tracking equal or above a certain number e.g. `!cpadd 2000`.\n`!cpdel` to remove cp tracking.\n`!cpinfo` to show if you have cp tracking enabled.\n"
-# IV user help
-if bot_lvlenable == 1:
-    helpmsg += "`!lvladd {number}` to add level tracking equal or above a certain number e.g. `!lvladd 28`.\n`!lvldel` to remove level tracking.\n`!lvlinfo` to show if you have level tracking enabled.\n"
-# GEO user help
-helpmsg += "`!geo {number} {address}` to limit all tracking to a certain radius in km. This allows for only nearby alerts to appear e.g. `!geo 1 300 Dufferin Ave, London, ON`.\n`!geodel` to remove the radius restrictions from tracking.\n`!geonfo` to shows the currently set radius limitations you have setup.\n"
- 
+# General help
+help_general = discord.Embed(title="Setting keywords")
+help_general.set_thumbnail(url="https://raw.githubusercontent.com/maerts/discordicons/master/botthumbs/38-256.png")
+help_general.add_field(name="!notify {keyword} {raid} {spawn}", value="to add/update a PM notification about a certain pokemon raid and/or spawn. The value for raid/spawn is either 1 to track or 0 to not track. Example: `!notify tyranitar 1 1`", inline=False)
+help_general.add_field(name="!notifydel {keyword}", value="to delete it. Example: `!notifydel tyranitar`", inline=False)
+help_general.add_field(name="!spawn {keyword} [-iv:{number} -lvl:{number}]", value="to add/update a PM notification about a certain pokemon spawn. The values for iv and level are optional. Example: `!spawn magikarp -iv:95 -lvl:30`", inline=False)
+help_general.add_field(name="!spawndel {keyword}", value="to delete it. Example: `!spawndel magikarp`", inline=False)
+help_general.add_field(name="!raid {keyword}", value="to add/update a PM notification about a certain raid, this can be a gym name or pokemon name. Example: `!raid tyranitar`", inline=False)
+help_general.add_field(name="!notifications", value="for a list of your current notifications", inline=False)
+help_general.add_field(name="!keywords help", value="not sure which strings to add? Send this command to the bot and you'll get an overview", inline=False)
 
-# The !help message for admin users
-helpamsg = "\n\n\
-Admin commands\n\
-\n\
-`!chanlst` print all channels and which ones are monitored by me.\n\
-`!chanadd {id}` add the channel with the id to the monitored list.\n\
-`!chandel {id}` remove the channel from the monitored list.\n\
-`!rolelst` print all roles that can use notification commands (non admin).\n\
-`!roleadd {id} {user} {admin}` give arole access to the notification bot, {id} is the roleid as shown in !rolelst, {user} & {admin} are 1 or 0.\n\
-`!roledel {id}` delete a role from the database of the notification bot.\n\
-`!keywordcleanup` this force cleans the notification database (old users and their notifications will be purged)\n\
-`!botstats` this returns userdata in the bot.\n\
-"
-# IV admin help
+# Mute help
+help_mute = discord.Embed(title="Muting")
+help_mute.set_thumbnail(url="https://raw.githubusercontent.com/maerts/discordicons/master/botthumbs/30-256.png")
+help_mute.add_field(name="!mute", value="to temporarily stop receiving notifications", inline=False)
+help_mute.add_field(name="!unmute", value="to start receiving messages again after using the `!mute` command", inline=False)
+
+# Global stats help
+help_mods = discord.Embed(title="Global stats tracking")
+help_mods.set_thumbnail(url="https://raw.githubusercontent.com/maerts/discordicons/master/botthumbs/31-256.png")
 if bot_ivenable == 1:
-    helpamsg += "`!ivlist` this returns iv tracking list in the bot.\n"
+    help_mods.add_field(name="!ivadd {number}", value="to add iv tracking equal or above a certain number e.g. `!ivadd 80`", inline=False)
+    help_mods.add_field(name="!ivdel", value="to remove IV tracking", inline=False)
+    help_mods.add_field(name="!ivinfo", value="to show if you have IV tracking enabled", inline=False)
+if bot_cpenable == 1:
+    help_mods.add_field(name="!cpadd {number}", value="to add cp tracking equal or above a certain number e.g. `!cpadd 2000`", inline=False)
+    help_mods.add_field(name="!cpdel", value="to remove cp tracking", inline=False)
+    help_mods.add_field(name="!cpinfo", value="to show if you have cp tracking enabled", inline=False)
+if bot_lvlenable == 1:
+    help_mods.add_field(name="lvladd {number}", value="to add level tracking equal or above a certain number e.g. `!lvladd 28`", inline=False)
+    help_mods.add_field(name="!lvldel", value="to remove level tracking", inline=False)
+    help_mods.add_field(name="!lvlinfo", value="to show if you have level tracking enabled", inline=False)
+
+# Geo fencing help
+help_geo = discord.Embed(title="Geo fencing")
+help_geo.set_thumbnail(url="https://raw.githubusercontent.com/maerts/discordicons/master/botthumbs/40-256.png")
+help_geo.add_field(name="!geo {number} {address}", value="to limit all tracking to a certain radius in km. This allows for only nearby alerts to appear e.g. `!geo 1 300 Dufferin Ave, London, ON`", inline=False)
+help_geo.add_field(name="!geodel", value="to remove the radius restrictions from tracking", inline=False)
+help_geo.add_field(name="!geonfo", value="to shows the currently set radius limitations you have setup", inline=False)
+
+# Admin help
+help_admin = discord.Embed(title="Admin commands", color=0xe70106)
+help_admin.set_thumbnail(url="https://raw.githubusercontent.com/maerts/discordicons/master/botthumbs/29-256.png")
+help_admin.add_field(name="!chanlst", value="print all channels and which ones are monitored by me", inline=False)
+help_admin.add_field(name="!chanadd {id}", value="add the channel with the id to the monitored list", inline=False)
+help_admin.add_field(name="!chandel {id}", value="remove the channel from the monitored list", inline=False)
+help_admin.add_field(name="!rolelst", value="print all roles that can use notification commands (non admin)", inline=False)
+help_admin.add_field(name="!roleadd {id} {user} {admin}", value="give arole access to the notification bot, {id} is the roleid as shown in !rolelst, {user} & {admin} are 1 or 0", inline=False)
+help_admin.add_field(name="!roledel {id}", value="delete a role from the database of the notification bot", inline=False)
+help_admin.add_field(name="!keywordcleanup", value="this force cleans the notification database (old users and their notifications will be purged)", inline=False)
+help_admin.add_field(name="!botstats", value="this returns userdata in the bot", inline=False)
+if bot_ivenable == 1:
+    help_admin.add_field(name="!ivlist", value="this returns iv tracking list in the bot", inline=False)
 
 # The message shown for unprivileged users
-noaccessmsg = "Hi I'm a notification bot!\n\
-\n\
-Unfortunately you do not have the proper permissions to use me, read #announcements for more information on how to donate to get access. If you believe this is in error, try again in a few minutes. Sometimes due to slow response times from Discord I can't find your permissions."
+access_no = discord.Embed(title="Hi, I'm a notification bot!", description="Unfortunately you do not have the proper permissions to use me. Read #announcements for more information on how to donate to get access. If you believe this is in error, try again in a few minutes. Sometimes due to slow response times from Discord I can't find your permissions.")
+
+access_yes = discord.Embed(title="Hi, I'm a notification bot!", description="to see which commands are available to you, send a message `!help` to me.")
 # --- End help messages ---
 
 @client.async_event
 def on_message(message):
     global notifications_list
+    global notifications_list_adv
     global notifraid_list
     global channel_list
     iv_enabled = bot_ivenable == 1
@@ -164,7 +184,7 @@ def on_message(message):
         if access_user or access_admin:
             server = client.get_server(discord_server)
             usr = server.get_member(message.author.id)
-            yield from client.send_message(usr, "Hi, I'm a notificationbot, to see which commands are available to you, send a message `!help` to me.")
+            yield from client.send_message(usr, embed=access_yes)
         return
     if message.channel.id not in channel_list and not message.channel.is_private:
         return
@@ -172,11 +192,19 @@ def on_message(message):
         return
     if message.channel.is_private:
         if not access_user and not access_admin:
-            yield from client.send_message(message.channel, noaccessmsg)
+            yield from client.send_message(message.channel, embed=access_no)
         elif '!help' == message.content[0:5]:
-            yield from client.send_message(message.channel, helpmsg)
+            yield from client.send_typing(message.channel)
+            yield from client.send_message(message.channel, embed=help_general)
+            yield from client.send_typing(message.channel)
+            yield from client.send_message(message.channel, embed=help_mute)
+            yield from client.send_typing(message.channel)
+            yield from client.send_message(message.channel, embed=help_mods)
+            yield from client.send_typing(message.channel)
+            yield from client.send_message(message.channel, embed=help_geo)
+
             if access_admin:
-                yield from client.send_message(message.channel, helpamsg)
+                yield from client.send_message(message.channel, embed=help_admin)
             
 
     # Handle incoming messages and filter them for keywords.
@@ -341,6 +369,7 @@ def keywords_help(message):
 def custom_notifications(message):
     global roles_list
     global notifications_list
+    global notifications_list_adv
     global notifraid_list
     global mute_list
     server = client.get_server(discord_server)
@@ -689,7 +718,23 @@ def custom_notifications(message):
                 if keyword in msglist:
                     watchdog('keyword in list :' + keyword)
                     for user_id in notifications_list[keyword]: # if empty, does nothing
-                        # Make sure we don't notify users whose access has been revoked
+                        # Extra filter on lv & iv per spawn
+                        adv_filter = False
+                        u_iv = 0
+                        u_lv = 0
+                        if notifications_list_adv.get(user_id) is not None:
+                            kwl = notifications_list_adv.get(user_id)
+                            if kwl.get(keyword) is not None:
+                                kws = kwl.get(keyword)
+                                u_iv = int(kws.get('iv'))
+                                u_lv = int(kws.get('lv'))
+                                
+                                if u_iv > 0 and int(float(reg_iv)) < u_iv:
+                                    adv_filter = True
+                                if u_lv > 0 and int(reg_level) < u_lv:
+                                    adv_filter = True
+
+                        # Make sure we don't notify users whose access has been revoked    
                         usr = server.get_member(user_id)
                         watchdog("user `{}`: `{}`".format(usr.id, keyword))
                         revoke = True
@@ -701,6 +746,9 @@ def custom_notifications(message):
                             pass
                         elif str(user_id) in exclude: # excluded from IV match
                             watchdog('User already notified on previous criteria')
+                            pass
+                        elif adv_filter: # excluded from advanced fitler
+                            watchdog('The spawn his level and/or iv is lower than the defined settings.')
                             pass
                         elif coords and geolookup(user_id, lng, lat) == False: # limited in radius
                             watchdog('Out of {} range'.format(usr.name))
@@ -729,13 +777,13 @@ def custom_notifications(message):
         try:
             asyncio.ensure_future(fetch_data(emb_dic, 'emb'), loop=client.loop).add_done_callback(data_result)
         except Exception as exc:
-            print(exc)
+            watchdog(exc)
 
     if len(txt_dic.keys()) > 0:
         try:
             asyncio.ensure_future(fetch_data(txt_dic, 'txt'), loop=client.loop).add_done_callback(data_result)
         except Exception as exc:
-            print(exc)
+            watchdog(exc)
 
 
 def fetch_data(list, type):
@@ -762,15 +810,18 @@ def fetch_data(list, type):
 def data_result(future):
     watchdog('Loop complete')
 
-# !notify {keyword}
+# !notify {keyword} {raid} {spawn}
+# !spawn {keyword} [-iv:{number} -lvl:{number}]
+# !raid {keyword}
 def if_add(message):
     global notifications_list
+    global notifications_list_adv
     global notifraid_list
+    if not roleacc(message, 'user'):
+        return
+    msg = message.content.lower().split()
     # message.author.id to add to files list
     if '!notify ' == message.content[0:8]:
-        if not roleacc(message, 'user'):
-            return
-        msg = message.content.lower().split()
         if len(msg) < 4:
             yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
         else:
@@ -793,7 +844,7 @@ def if_add(message):
             else:
                 db = db_connect()
                 c = db.cursor()
-                c.execute("SELECT count(1) FROM notificationbot_keywords WHERE discord_id = '{}';".format(message.author.id))
+                c.execute("SELECT count(1) FROM notificationbot_keywords WHERE discord_id = '{}' AND (raid = 1 or spawn = 1);".format(message.author.id))
                 d = c.fetchone()
                 c.close()
                 db_close(db)
@@ -803,7 +854,7 @@ def if_add(message):
                 watchdog('Verify existence and respond accordinly')
                 watchdog('In spawn: ' + str(in_spawn))
                 watchdog('In raid: ' + str(in_raid))
-                if int(d[0]) == bot_keywordlimit and not in_spawn and not in_raid:
+                if int(d[0]) >= int(bot_keywordlimit) and not in_spawn and not in_raid:
                     yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
                 else:
                     watchdog('Find keyword in list')
@@ -816,23 +867,135 @@ def if_add(message):
                     watchdog('Find keyword in existing list')
                     # when keyword in file:
                     if row is not None:
+                        if int(raid) == 0 and int(spawn) == 0:
+                            watchdog('Delete keyword when both values are set to 0.')
+                            db = db_connect()
+                            c = db.cursor()
+                            c.execute("""DELETE FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
+                            deleted = c.rowcount
+                            db.commit()
+                            c.close()
+                            db_close(db)
+                            yield from client.send_message(message.channel, "Deleted keyword `{}` from the tracking.".format(keyword))
+                        else:
+                            watchdog('Updating keyword')
+                            db = db_connect()
+                            c = db.cursor()
+                            try:
+                                c.execute ("""UPDATE notificationbot_keywords SET raid=%s, spawn=%s WHERE discord_id=%s AND keyword=%s""", (raid, spawn, message.author.id, keyword.lower()))
+                                db.commit()
+                            except:
+                                db.rollback()
+                            c.close()
+                            db_close(db)
+                            yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
+                    else:
+                        if int(raid) == 0 and int(spawn) == 0:
+                            yield from client.send_message(message.channel, 'I won\'t add a notification with empty raid and spawn tracking')
+                        else:
+                            watchdog('Inserting keyword')
+                            db = db_connect()
+                            c = db.cursor()
+                            try:
+                                c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn, iv, lv) VALUES (%s, %s, %s, %s, %s, %s)""", (keyword.lower(), message.author.id, int(raid), int(spawn), 0, 0))
+                                db.commit()
+                            except MySQLdb.Error as e:
+                                db.rollback()
+                                watchdog(str(e))
+                            c.close()
+                            db_close(db)
+                            notifications_list = updatedictionary()
+                            notifications_list_adv = updateadvdictionary()
+                            notifraid_list = updateraiddictionary()
+                            yield from client.send_message(message.channel, 'Added notification `{} [raid: {}|spawn: {}]`. To delete, use `!notifydel [keyword]`'.format(keyword, raid, spawn))
+    elif '!spawn ' == message.content[0:7]:
+        if len(msg) < 2:
+            yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
+        else:
+            # Build keyword with spaces
+            keyword = ""
+            iv = 0
+            level = 0
+            keywords_pending = True
+            for x in range(1, len(msg)):
+                options = msg[x].split(':')
+                if len(options) == 2:
+                    if options[0:1] == '-':
+                        keywords_pending = False
+                    if options[0] == '-iv':
+                        iv = int(options[1])
+                    elif options[0] == '-lvl':
+                        level = int(options[1])
+                elif keywords_pending:
+                    keyword = keyword + " " + stripchars(msg[x]).strip()
+            keyword = keyword.strip()
+            # Run the keyword through levenshtein
+            levenshtein = pokemon_autocorrect(keyword)
+            # get the raid & spawn tracking value
+            watchdog('Spawn: ' + keyword)
+
+            if levenshtein != keyword and levenshtein != "":
+                yield from client.send_message(message.channel, "Did you mean any of the following: `{}`? Correct if you made a mistake with one of the suggestions.".format(levenshtein, keyword, raid, spawn))
+            else:
+                db = db_connect()
+                c = db.cursor()
+                c.execute("SELECT count(1) FROM notificationbot_keywords WHERE discord_id = '{}' AND (raid = 1 or spawn = 1);".format(message.author.id))
+                d = c.fetchone()
+                c.close()
+                db_close(db)
+                watchdog('Checking existing lists for entries')
+                in_spawn = keyword in notifications_list.keys() and message.author.id in notifications_list[keyword]
+                in_raid = keyword in notifraid_list.keys() and message.author.id in notifraid_list[keyword]
+                watchdog('Verify existence and respond accordinly')
+                watchdog('In spawn: ' + str(in_spawn))
+                watchdog('In raid: ' + str(in_raid))
+                if int(d[0]) >= int(bot_keywordlimit) and not in_spawn and not in_raid:
+                    yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
+                else:
+                    watchdog('Find keyword in list')
+                    db = db_connect()
+                    c = db.cursor()
+                    c.execute(("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = '{}' AND discord_id='{}'".format(keyword.lower().replace("'", "\\'"), message.author.id)))
+                    row = c.fetchone()
+                    c.close()
+                    db_close(db)
+                    
+                    watchdog('Find keyword in existing list')
+                    # when keyword in file:
+                    if row is not None:
+                        i_iv = iv if iv > 0 else row[5]
+                        i_lv = level if level > 0 else row[6]
+
                         watchdog('Updating keyword')
                         db = db_connect()
                         c = db.cursor()
                         try:
-                            c.execute ("""UPDATE notificationbot_keywords SET raid=%s, spawn=%s WHERE discord_id=%s AND keyword=%s""", (raid, spawn, message.author.id, keyword.lower()))
+                            c.execute ("""UPDATE notificationbot_keywords SET spawn=%s, iv=%s, lv=%s WHERE discord_id=%s AND keyword=%s""", (1, i_iv, i_lv, message.author.id, keyword.lower()))
                             db.commit()
                         except:
                             db.rollback()
                         c.close()
                         db_close(db)
-                        yield from client.send_message(message.channel, 'I have updated keyword `{} [raid: {}|spawn: {}]` for you.'.format(keyword, raid, spawn))
+                        notifications_list = updatedictionary()
+                        notifications_list_adv = updateadvdictionary()
+                        notifraid_list = updateraiddictionary()
+                        params = ""
+                        if level is not 0 or iv is not 0:
+                            tmp = ""
+                            if level > 0:
+                                tmp += " lvl >= {}".format(str(level))
+                            if iv > 0:
+                                tmp += " iv >= {}".format(str(iv))
+                            params = " with [{}]".format(tmp.strip())
+                        yield from client.send_message(message.channel, 'I have updated spawn notification `{}`{}. To delete, use `!spawndel {}`'.format(keyword, params, keyword))
                     else:
+                        i_iv = iv if iv > 0 else 0
+                        i_lv = level if level > 0 else 0
                         watchdog('Inserting keyword')
                         db = db_connect()
                         c = db.cursor()
                         try:
-                            c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn) VALUES (%s, %s, %s, %s)""", (keyword.lower(), message.author.id, int(raid), int(spawn)))
+                            c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn, iv, lv) VALUES (%s, %s, %s, %s, %s, %s)""", (keyword.lower(), message.author.id, 0, 1, i_iv, i_lv))
                             db.commit()
                         except MySQLdb.Error as e:
                             db.rollback()
@@ -840,17 +1003,106 @@ def if_add(message):
                         c.close()
                         db_close(db)
                         notifications_list = updatedictionary()
+                        notifications_list_adv = updateadvdictionary()
                         notifraid_list = updateraiddictionary()
-                        yield from client.send_message(message.channel, 'Added notification `{} [raid: {}|spawn: {}]`. To delete, use `!notifydel [keyword]`'.format(keyword, raid, spawn))
+                        params = ""
+                        if level > 0 or iv > 0:
+                            tmp = ""
+                            if level > 0:
+                                tmp += " lvl >= {}".format(str(level))
+                            if iv > 0:
+                                tmp += " iv >= {}".format(str(iv))
+                            params = " with [{}]".format(tmp.strip())
+                        yield from client.send_message(message.channel, 'Added spawn notification `{}`{}. To delete, use `!spawndel {}`'.format(keyword, params, keyword))
+    elif '!raid ' == message.content[0:6]:
+        if len(msg) < 2:
+            yield from client.send_message(message.channel, "You are missing a parameter for the command, please verify and retry.")
+        else:
+            # Build keyword with spaces
+            keyword = ""
+
+            for x in range(1, len(msg)):
+                keyword = keyword + " " + stripchars(msg[x]).strip()
+            keyword = keyword.strip()
+            # Run the keyword through levenshtein
+            levenshtein = pokemon_autocorrect(keyword)
+            # get the raid & spawn tracking value
+            watchdog('Raid: ' + keyword)
+
+            if levenshtein != keyword and levenshtein != "":
+                yield from client.send_message(message.channel, "Did you mean any of the following: `{}`? Correct if you made a mistake with one of the suggestions.".format(levenshtein, keyword, raid, spawn))
+            else:
+                db = db_connect()
+                c = db.cursor()
+                c.execute("SELECT count(1) FROM notificationbot_keywords WHERE discord_id = '{}';".format(message.author.id))
+                d = c.fetchone()
+                c.close()
+                db_close(db)
+                watchdog('Checking existing lists for entries')
+                in_spawn = keyword in notifications_list.keys() and message.author.id in notifications_list[keyword]
+                in_raid = keyword in notifraid_list.keys() and message.author.id in notifraid_list[keyword]
+                watchdog('Verify existence and respond accordinly')
+                watchdog('In spawn: ' + str(in_spawn))
+                watchdog('In raid: ' + str(in_raid))
+                if int(d[0]) >= int(bot_keywordlimit) and not in_spawn and not in_raid:
+                    yield from client.send_message(message.channel, "You have reached the limit of {} keywords. Delete a keyword first to add a new one.".format(bot_keywordlimit))
+                else:
+                    watchdog('Find keyword in list')
+                    db = db_connect()
+                    c = db.cursor()
+                    c.execute(("SELECT * FROM notificationbot_keywords WHERE LOWER(keyword) = '{}' AND discord_id='{}'".format(keyword.lower().replace("'", "\\'"), message.author.id)))
+                    row = c.fetchone()
+                    c.close()
+                    db_close(db)
+                    
+                    watchdog('Find keyword in existing list')
+                    # when keyword in file:
+                    if row is not None:
+                        watchdog('Updating raid')
+                        db = db_connect()
+                        c = db.cursor()
+                        try:
+                            c.execute ("""UPDATE notificationbot_keywords SET raid=%s WHERE discord_id=%s AND keyword=%s""", (1, message.author.id, keyword.lower()))
+                            db.commit()
+                        except:
+                            db.rollback()
+                        c.close()
+                        db_close(db)
+                        notifications_list = updatedictionary()
+                        notifications_list_adv = updateadvdictionary()
+                        notifraid_list = updateraiddictionary()
+                        yield from client.send_message(message.channel, 'I have updated raid notification `{}`. To delete, use `!raiddel {}`'.format(keyword, keyword))
+                    else:
+                        watchdog('Inserting raid')
+                        db = db_connect()
+                        c = db.cursor()
+                        try:
+                            c.execute("""INSERT INTO notificationbot_keywords (keyword, discord_id, raid, spawn, iv, lv) VALUES (%s, %s, %s, %s, %s, %s)""", (keyword.lower(), message.author.id, 1, 0, 0, 0))
+                            db.commit()
+                        except MySQLdb.Error as e:
+                            db.rollback()
+                            watchdog(str(e))
+                        c.close()
+                        db_close(db)
+                        notifications_list = updatedictionary()
+                        notifications_list_adv = updateadvdictionary()
+                        notifraid_list = updateraiddictionary()
+
+                        yield from client.send_message(message.channel, 'Added raid notification `{}`. To delete, use `!raiddel {}`'.format(keyword, keyword))
 
 # !notifydel {keyword}
+# !spawndel {keyword}
+# !raiddel {keyword}
 def if_delete(message):
+    global notifications_list
+    global notifications_list_adv
+    global notifraid_list
+    if not roleacc(message, 'user'):
+        return
+    msg = message.content.lower().split()
     # opens file list, finds line with the keyword, deletes message.author.id from it.
     # If empty dict, delete?
     if '!notifydel' == message.content[0:10]:
-        if not roleacc(message, 'user'):
-            return
-        msg = message.content.lower().split()
         if len(msg) < 2:
             yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
         else:
@@ -868,14 +1120,103 @@ def if_delete(message):
             c.close()
             db_close(db)
             if deleted > 0:
-                global notifications_list
                 notifications_list = updatedictionary()
-                global notifraid_list
+                notifications_list_adv = updateadvdictionary()
                 notifraid_list = updateraiddictionary()
                 yield from client.send_message(message.channel, "Deleted keyword `{}` from the tracking.".format(keyword))
             else:
                 yield from client.send_message(message.channel, "I am not tracking keyword `{}` so nothing was deleted.".format(keyword))
-
+    elif '!spawndel ' == message.content[0:10]:
+        if len(msg) < 2:
+            yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+        else:
+            keyword = ""
+            for x in range(1, len(msg)):
+                keyword = keyword + " " + stripchars(msg[x]).strip()
+            keyword = keyword.strip()
+            # instance of server for later use
+            server = client.get_server(discord_server)
+            db = db_connect()
+            c = db.cursor()
+            c.execute("""SELECT raid FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
+            d = c.fetchone()
+            c.close()
+            db_close(db)
+            
+            if d[0] == 0:
+                db = db_connect()
+                c = db.cursor()
+                c.execute("""DELETE FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
+                deleted = c.rowcount
+                db.commit()
+                c.close()
+                db_close(db)
+                if deleted > 0:
+                    notifications_list = updatedictionary()
+                    notifications_list_adv = updateadvdictionary()
+                    notifraid_list = updateraiddictionary()
+                    yield from client.send_message(message.channel, "Deleted spawn `{}` from the tracking.".format(keyword))
+                else:
+                    yield from client.send_message(message.channel, "I am not tracking spawn `{}` so nothing was deleted.".format(keyword))
+            else:
+                db = db_connect()
+                c = db.cursor()
+                try:
+                    c.execute("""UPDATE notificationbot_keywords SET spawn=%s, iv=%s, lv=%s WHERE discord_id=%s AND keyword=%s""", (0, 0, 0, message.author.id, keyword.lower()))
+                    db.commit()
+                except:
+                    db.rollback()
+                c.close()
+                db_close(db)
+                notifications_list = updatedictionary()
+                notifications_list_adv = updateadvdictionary()
+                yield from client.send_message(message.channel, "Deleted spawn `{}` from the tracking.".format(keyword))
+    elif '!raiddel ' == message.content[0:9]:
+        if len(msg) < 2:
+            yield from client.send_message(message.channel, "You are missing a parameter to the command, please verify and retry.")
+        else:
+            keyword = ""
+            for x in range(1, len(msg)):
+                keyword = keyword + " " + stripchars(msg[x]).strip()
+            keyword = keyword.strip()
+            # instance of server for later use
+            server = client.get_server(discord_server)
+            db = db_connect()
+            c = db.cursor()
+            c.execute("""SELECT spawn FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
+            d = c.fetchone()
+            c.close()
+            db_close(db)
+            
+            if d[0] == 0:
+                db = db_connect()
+                c = db.cursor()
+                c.execute("""DELETE FROM notificationbot_keywords WHERE LOWER(keyword)=%s AND discord_id=%s""", (keyword, message.author.id))
+                deleted = c.rowcount
+                db.commit()
+                c.close()
+                db_close(db)
+                if deleted > 0:
+                    notifications_list = updatedictionary()
+                    notifications_list_adv = updateadvdictionary()
+                    notifraid_list = updateraiddictionary()
+                    yield from client.send_message(message.channel, "Deleted spawn `{}` from the tracking.".format(keyword))
+                else:
+                    yield from client.send_message(message.channel, "I am not tracking spawn `{}` so nothing was deleted.".format(keyword))
+            else:
+                db = db_connect()
+                c = db.cursor()
+                try:
+                    c.execute("""UPDATE notificationbot_keywords SET raid=%s WHERE discord_id=%s AND keyword=%s""", (0, message.author.id, keyword.lower()))
+                    db.commit()
+                except:
+                    db.rollback()
+                c.close()
+                db_close(db)
+                notifications_list = updatedictionary()
+                notifications_list_adv = updateadvdictionary()
+                yield from client.send_message(message.channel, "Deleted spawn `{}` from the tracking.".format(keyword))
+                
 # !keywordcleanup
 def keywords_cleanup(message):
     global roles_list
@@ -893,15 +1234,19 @@ def keywords_cleanup(message):
     c.close()
     db_close(db)
     cleanup = []
+    cleanup.append(0)    
     for i, d in enumerate(data):
-        usr = server.get_member(d[0])
-        clean = True
-        for role in usr.roles:
-            if role.id in roles_list.keys() and (roles_list[role.id]['user'] == 1 or roles_list[role.id]['admin'] == 1):
-                clean = False
+        try:
+            usr = server.get_member(d[0])
+            clean = True
+        except:
+            clean = False
+        if clean:
+            for role in usr.roles:
+                if role.id in roles_list.keys() and (roles_list[role.id]['user'] == 1 or roles_list[role.id]['admin'] == 1):
+                    clean = False
         if clean:
             cleanup.append(d[0])    
-    
     # Force a cleanup of the ID's found that have a role without permissions
     db = db_connect()
     c = db.cursor()    
@@ -914,6 +1259,8 @@ def keywords_cleanup(message):
     if deleted > 0:
         global notifications_list
         notifications_list = updatedictionary()
+        global notifications_list_adv
+        notifications_list_adv = updateadvdictionary()
         global notifraid_list
         notifraid_list = updateraiddictionary()
         yield from client.send_message(message.channel, "Deleted `{}` keyword notifications from the tracking.".format(deleted))
@@ -922,31 +1269,98 @@ def keywords_cleanup(message):
 
 # !notifications
 def mynotifications(message):
-    if not roleacc(message, 'user'):
-        return
-    db = db_connect()
-    c = db.cursor()
-    c.execute("SELECT * FROM notificationbot_keywords WHERE discord_id = '{}';".format(message.author.id))
-    data = c.fetchall()
-    c.close()
-    db_close(db)
-    raid = []
-    spawn = []
-    for i, d in enumerate(data):
-        # if raids
-        if d[3] == 1:
-            raid.append(d[1])
-        # if spawns
-        if d[4] == 1:
-            spawn.append(d[1])
-    notifications = "```\
-    Right now I'm tracking the following information for you. Use !help to look at the commands.\n\
-    Raids\n\
-    " + str(raid) + "\n\
-    Spawns\n\
-    " + str(spawn) + "```\n"
-    
-    yield from client.send_message(message.channel, notifications)
+    server = client.get_server(discord_server)
+    msg = message.content.lower().split()
+    if len(msg) > 1:
+        if not roleacc(message, 'admin'):
+            return
+        user = " ".join(msg[1:])
+        discordmember = None
+        count = 0
+        duplicatemembers = []
+        for member in server.members:
+                if user_lookup(member, user):
+                   discordmember = member
+                   count = count + 1
+                   duplicatemembers.append(member)
+        if discordmember is not None:
+            if count > 1:
+                em = discord.Embed(title="Multiple users found", description="I have found multiple users with this name. Try using a unique string .")
+                yield from client.send_message(message.channel, embed=em)
+                for i, member in enumerate(duplicatemembers):
+                    em = discord.Embed()
+                    em.set_author(name=member.name, icon_url=member.avatar_url)
+                    em.add_field(name="User ID:", value=member.id, inline=False)
+                    em.add_field(name="Current Username:", value=member.display_name, inline=False)
+                    em.add_field(name="Current Nickname:", value=member.nick, inline=False)
+                    em.add_field(name="Unique:", value=member.name + "#" + member.discriminator, inline=False)
+                    em.add_field(name="User Since:", value=member.created_at, inline=False)
+                    em.add_field(name="Highest role:", value=member.top_role.name, inline=False)
+                    yield from client.send_message(message.channel, embed=em)
+            else:
+                db = db_connect()
+                c = db.cursor()
+                c.execute("SELECT * FROM notificationbot_keywords WHERE discord_id = '{}' AND (raid = 1 or spawn = 1) ORDER BY keyword ASC;".format(discordmember.id))
+                data = c.fetchall()
+                c.close()
+                db_close(db)
+                raid = []
+                spawn = []
+                count = 0
+                for i, d in enumerate(data):
+                    count = count + 1
+                    # if raids
+                    if d[3] == 1:
+                        raid.append(d[1])
+                    # if spawns
+                    if d[4] == 1:
+                        extra = ""
+                        if d[5] > 0 or d[6] > 0:
+                            tmp = ""
+                            if d[5] > 0:
+                                tmp += " IV:" + str(d[5])
+                            if d[6] > 0:
+                                tmp += " LVL:" + str(d[6])
+                            extra = " (**{}**)".format(tmp.strip())
+                        spawn.append(d[1] + extra)
+                em = discord.Embed(title="Notifications", description="Right now I'm tracking the following information for `{}`. __{} can add **{}** more keywords__. Use !help to look at the different commands.".format(discordmember.display_name, discordmember.display_name, str((int(bot_keywordlimit) - count))))
+                em.add_field(name="Raids", value="- " + str.join('\n- ', raid), inline=False)
+                em.add_field(name="Spawns", value="- " + str.join('\n- ', spawn), inline=False)
+                
+                yield from client.send_message(message.channel, embed=em)
+    else:
+        if not roleacc(message, 'user'):
+            return
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT * FROM notificationbot_keywords WHERE discord_id = '{}' AND (raid = 1 or spawn = 1) ORDER BY keyword ASC;".format(message.author.id))
+        data = c.fetchall()
+        c.close()
+        db_close(db)
+        raid = []
+        spawn = []
+        count = 0
+        for i, d in enumerate(data):
+            count = count + 1
+            # if raids
+            if d[3] == 1:
+                raid.append(d[1])
+            # if spawns
+            if d[4] == 1:
+                extra = ""
+                if d[5] > 0 or d[6] > 0:
+                    tmp = ""
+                    if d[5] > 0:
+                        tmp += " IV:" + str(d[5])
+                    if d[6] > 0:
+                        tmp += " LVL:" + str(d[6])
+                    extra = " (**{}**)".format(tmp.strip())
+                spawn.append(d[1] + extra)
+        em = discord.Embed(title="Notifications", description="Right now I'm tracking the following information for you. __You can add **{}** more keywords__. Use !help to look at the different commands.".format(str((int(bot_keywordlimit) - count))))
+        em.add_field(name="Raids", value="- " + str.join('\n- ', raid), inline=False)
+        em.add_field(name="Spawns", value="- " + str.join('\n- ', spawn), inline=False)
+        
+        yield from client.send_message(message.channel, embed=em)
     
 # Helper function to update the dictionary to loop through. Lowers the DB load.
 def updatedictionary():
@@ -968,6 +1382,29 @@ def updatedictionary():
         for i, id in enumerate(ids):
             k_ids.append(id[0])
         dict[d[0]] = k_ids
+    return dict
+    
+# Helper function to update the dictionary to loop through. Lowers the DB load.
+def updateadvdictionary():
+    db = db_connect()
+    c = db.cursor()
+    c.execute("SELECT DISTINCT discord_id FROM notificationbot_keywords WHERE spawn = 1 AND (iv != 0 OR lv != 0) ORDER BY discord_id;")
+    data = c.fetchall()
+    c.close()
+    db_close(db)
+    dict = {}
+    for i, d in enumerate(data):
+        db = db_connect()
+        c = db.cursor()
+        c.execute("SELECT keyword, iv, lv FROM notificationbot_keywords WHERE spawn = 1 AND (iv != 0 OR lv != 0) AND discord_id = '{}';".format(d[0].replace("'", "\\'")))
+        ids = c.fetchall()
+        c.close()
+        db_close(db)
+        dict[d[0]] = {}
+        for i, id in enumerate(ids):
+            dict[d[0]][id[0]] = {}
+            dict[d[0]][id[0]]['iv'] = id[1]
+            dict[d[0]][id[0]]['lv'] = id[2]
     return dict
 
 # Helper function to update the dictionary to loop through. Lowers the DB load.
@@ -1881,13 +2318,15 @@ def botstats(message):
     otp += '\n\nuser'.ljust(50) + 'keywords\n'
     for key in raid.keys():
         usr = server.get_member(key)
-        tmp = (usr.name + ' (' + key + ')').ljust(50) + str(raid[key]) + '\n'
-        if (len(tmp) + len(otp)) >  1997:
-            otp += '```'
-            yield from client.send_message(message.author, otp)
-            otp = '```'
-        otp += tmp
-
+        if usr is not None:
+            tmp = (usr.name + ' (' + key + ')').ljust(50) + str(raid[key]) + '\n'
+            if (len(tmp) + len(otp)) >  1997:
+                otp += '```'
+                yield from client.send_message(message.author, otp)
+                otp = '```'
+            otp += tmp
+        else:
+            watchdog('User {} cannot be found'.format(key))
     otp += '```'
     yield from client.send_message(message.author, otp)
     # Print spawn statistics for users
@@ -1896,13 +2335,15 @@ def botstats(message):
     otp += '\n\nuser'.ljust(50) + 'keywords\n'
     for key in spawn.keys():
         usr = server.get_member(key)
-        tmp = (usr.name + ' (' + key + ')').ljust(50) + str(spawn[key]) + '\n'
-        if (len(tmp) + len(otp)) >  1997:
-            otp += '```'
-            yield from client.send_message(message.author, otp)
-            otp = '```'
-        otp += tmp
-
+        if usr is not None:
+            tmp = (usr.name + ' (' + key + ')').ljust(50) + str(spawn[key]) + '\n'
+            if (len(tmp) + len(otp)) >  1997:
+                otp += '```'
+                yield from client.send_message(message.author, otp)
+                otp = '```'
+            otp += tmp
+        else:
+            watchdog('User {} cannot be found'.format(key))
     otp += '```'
     yield from client.send_message(message.author, otp)
 
@@ -1955,7 +2396,20 @@ def levenshtein(s1, s2):
         previous_row = current_row
     
     return previous_row[-1]
-    
+
+# Helper function to get the correct member
+def user_lookup(member, user):
+    regex = _regex_from_encoded_pattern('/<@(\d+)>/si')
+    match_id = regex.findall(user)
+    if len(match_id) == 1:
+        user = match_id[0]
+    regex = _regex_from_encoded_pattern('/@(.+)/si')
+    match_id = regex.findall(user)
+    if len(match_id) == 1:
+        user = match_id[0]
+    return str(member.name).lower() == user.lower() or str(member.name + '#' + member.discriminator).lower() == user or member.id == user or str(member.nick).lower() == user.lower()
+
+
 # --- db functions ---
 # Helper function to execute a query and return the results in a list object
 def db_connect():

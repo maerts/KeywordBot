@@ -1,0 +1,3 @@
+ALTER TABLE `notificationbot_keywords` 
+ADD COLUMN `cp` INT NOT NULL DEFAULT 0 AFTER `spawn`,
+ADD COLUMN `lv` INT NOT NULL DEFAULT 0 AFTER `cp`;

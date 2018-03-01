@@ -1,4 +1,9 @@
 # Changelog
+01/03/2018
+----
+* Added filtering on iv/lvl per pokemon. Updated the help to reflect these changes
+* Added extra commands to update spawns and raids.
+* Aded database update script.
 08/02/2018
 ----
 * Added the !mute and !unmute commands so you can temporarily disable the bot on a per-user basis
